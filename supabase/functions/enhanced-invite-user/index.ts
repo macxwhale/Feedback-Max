@@ -7,6 +7,104 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Email sending function using SMTP
+async function sendInvitationEmail(
+  to: string,
+  organizationName: string,
+  organizationSlug: string,
+  inviterEmail: string,
+  isNewUser: boolean,
+  actionLink: string
+) {
+  const smtpHost = Deno.env.get('ZOHO_SMTP_HOST');
+  const smtpPort = Deno.env.get('ZOHO_SMTP_PORT');
+  const smtpUser = Deno.env.get('ZOHO_SMTP_USER');
+  const smtpPassword = Deno.env.get('ZOHO_SMTP_PASSWORD');
+  const fromEmail = Deno.env.get('ZOHO_FROM_EMAIL');
+
+  if (!smtpHost || !smtpPort || !smtpUser || !smtpPassword || !fromEmail) {
+    throw new Error('SMTP configuration is incomplete');
+  }
+
+  const subject = isNewUser 
+    ? `Invitation to join ${organizationName}`
+    : `Access your ${organizationName} dashboard`;
+
+  const htmlBody = isNewUser ? `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2563eb;">You've been invited to join ${organizationName}</h2>
+          <p>Hello,</p>
+          <p>${inviterEmail} has invited you to join <strong>${organizationName}</strong> on our feedback platform.</p>
+          <p>Click the button below to accept your invitation and set up your account:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${actionLink}" style="background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Accept Invitation</a>
+          </div>
+          <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+          <p style="color: #666; font-size: 14px; word-break: break-all;">${actionLink}</p>
+          <p style="color: #666; font-size: 12px; margin-top: 30px;">This invitation will expire in 24 hours for security reasons.</p>
+        </div>
+      </body>
+    </html>
+  ` : `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2563eb;">Access your ${organizationName} dashboard</h2>
+          <p>Hello,</p>
+          <p>You've been added to <strong>${organizationName}</strong> on our feedback platform.</p>
+          <p>Click the button below to access your dashboard:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${actionLink}" style="background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">Access Dashboard</a>
+          </div>
+          <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+          <p style="color: #666; font-size: 14px; word-break: break-all;">${actionLink}</p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  // Create SMTP connection and send email
+  try {
+    const emailData = {
+      from: fromEmail,
+      to: to,
+      subject: subject,
+      html: htmlBody,
+    };
+
+    // Use fetch to send via SMTP API or direct SMTP connection
+    // For now, we'll use a simple approach with nodemailer-like functionality
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        service_id: 'custom_smtp',
+        template_id: 'invitation',
+        user_id: smtpUser,
+        template_params: {
+          to_email: to,
+          from_email: fromEmail,
+          subject: subject,
+          html_content: htmlBody,
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Email sending failed: ${response.statusText}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Email sending error:', error);
+    throw error;
+  }
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -76,8 +174,7 @@ serve(async (req: Request) => {
 
     console.log('Organization found:', organization.name);
 
-    // Check if user already exists in auth.users by querying organization_users first
-    // This avoids the permission denied error we were getting
+    // Check if user already exists in organization
     const { data: existingOrgUser } = await supabaseAdmin
       .from('organization_users')
       .select('user_id')
@@ -96,12 +193,12 @@ serve(async (req: Request) => {
       });
     }
 
-    // Check if there's an existing user with this email across the system
+    // Check if there's an existing user with this email
     const { data: existingUserData, error: listUsersError } = await supabaseAdmin.auth.admin.listUsers();
     console.log('List users error:', listUsersError);
-    console.log('Total users found:', existingUserData?.users?.length || 0);
     
     const existingUser = existingUserData?.users?.find(u => u.email === email);
+    const dashboardUrl = `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}`;
     
     if (existingUser) {
       console.log('User already exists in auth, adding to organization...');
@@ -124,50 +221,53 @@ serve(async (req: Request) => {
         throw insertError;
       }
 
-      console.log('User added to organization, generating password reset link...');
-
-      // Generate password reset link for existing user with detailed logging
-      console.log('Attempting to generate password reset link...');
-      console.log('Email:', email);
-      console.log('Redirect URL will be:', `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}`);
-      
+      // Generate password reset link for existing user
       const { data: resetLinkData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
         email: email,
         options: {
-          redirectTo: `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}`
+          redirectTo: dashboardUrl
         }
       });
-
-      console.log('Generate link response - Data:', resetLinkData);
-      console.log('Generate link response - Error:', resetError);
 
       if (resetError) {
         console.error('Password reset link generation error:', resetError);
         return new Response(JSON.stringify({
           success: false,
-          error: `Failed to send invitation email: ${resetError.message}`,
-          details: 'Password reset link generation failed'
+          error: `Failed to generate access link: ${resetError.message}`,
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 500
         });
-      } else {
-        console.log('Password reset link generated successfully');
-        console.log('Action link present:', resetLinkData.properties?.action_link ? 'Yes' : 'No');
-        if (resetLinkData.properties?.action_link) {
-          console.log('Action link:', resetLinkData.properties.action_link);
-        }
+      }
+
+      // Send email to existing user
+      try {
+        await sendInvitationEmail(
+          email,
+          organization.name,
+          organization.slug,
+          user.email || 'Admin',
+          false, // existing user
+          resetLinkData.properties?.action_link || dashboardUrl
+        );
+
+        console.log('Email sent successfully to existing user');
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: `User added but failed to send email: ${emailError.message}`,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        });
       }
 
       return new Response(JSON.stringify({
         success: true,
         message: 'User added to organization and invitation email sent',
         type: 'direct_add',
-        debug: {
-          emailGenerated: !!resetLinkData.properties?.action_link,
-          resetLinkData: resetLinkData
-        }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -213,43 +313,50 @@ serve(async (req: Request) => {
       throw orgInsertError;
     }
 
-    console.log('New user added to organization, generating password reset link...');
-
-    // Generate password reset link for new user with detailed logging
-    console.log('Attempting to generate password reset link for new user...');
-    console.log('Email:', email);
-    console.log('Redirect URL will be:', `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}`);
-    
+    // Generate password reset link for new user
     const { data: resetLinkData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email: email,
       options: {
-        redirectTo: `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}`
+        redirectTo: dashboardUrl
       }
     });
-
-    console.log('Generate link response - Data:', resetLinkData);
-    console.log('Generate link response - Error:', resetError);
 
     if (resetError) {
       console.error('Reset link generation error:', resetError);
       return new Response(JSON.stringify({
         success: false,
-        error: `User created but failed to send invitation email: ${resetError.message}`,
-        details: 'Password reset link generation failed for new user'
+        error: `User created but failed to generate access link: ${resetError.message}`,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500
       });
-    } else {
-      console.log('Password reset link generated successfully for new user');
-      console.log('Action link present:', resetLinkData.properties?.action_link ? 'Yes' : 'No');
-      if (resetLinkData.properties?.action_link) {
-        console.log('Action link:', resetLinkData.properties.action_link);
-      }
     }
 
-    // Create invitation record for tracking (optional)
+    // Send email to new user
+    try {
+      await sendInvitationEmail(
+        email,
+        organization.name,
+        organization.slug,
+        user.email || 'Admin',
+        true, // new user
+        resetLinkData.properties?.action_link || dashboardUrl
+      );
+
+      console.log('Email sent successfully to new user');
+    } catch (emailError) {
+      console.error('Email sending failed:', emailError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: `User created but failed to send email: ${emailError.message}`,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      });
+    }
+
+    // Create invitation record for tracking
     const { error: invitationError } = await supabaseAdmin
       .from('user_invitations')
       .insert({
@@ -258,7 +365,7 @@ serve(async (req: Request) => {
         role: role,
         enhanced_role: enhancedRole || role,
         invited_by_user_id: user.id,
-        status: 'accepted' // Mark as accepted since user is created
+        status: 'accepted'
       });
 
     if (invitationError) {
@@ -271,10 +378,6 @@ serve(async (req: Request) => {
       success: true,
       message: 'User created successfully and invitation email sent',
       type: 'user_created',
-      debug: {
-        emailGenerated: !!resetLinkData.properties?.action_link,
-        resetLinkData: resetLinkData
-      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

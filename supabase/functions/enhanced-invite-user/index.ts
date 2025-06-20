@@ -103,9 +103,36 @@ serve(async (req: Request) => {
     const dashboardUrl = `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}`;
     
     if (existingUser) {
-      console.log('User already exists in auth, adding to organization...');
+      console.log('User already exists in auth, sending invitation email...');
       
-      // Add existing user to organization
+      // For existing users, use inviteUserByEmail to send them an invitation
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: dashboardUrl,
+        data: {
+          organization_name: organization.name,
+          organization_slug: organization.slug,
+          organization_id: organizationId,
+          role: role,
+          enhanced_role: enhancedRole || role,
+          inviter_email: user.email || 'Admin',
+          is_existing_user: true
+        }
+      });
+
+      if (inviteError) {
+        console.error('Email invitation error for existing user:', inviteError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Failed to send invitation email: ${inviteError.message}`,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        });
+      }
+
+      console.log('Invitation email sent successfully to existing user');
+
+      // Add existing user to organization after successful email invitation
       const { error: insertError } = await supabaseAdmin
         .from('organization_users')
         .insert({
@@ -119,114 +146,86 @@ serve(async (req: Request) => {
         });
 
       if (insertError) {
-        console.error('Error adding user to organization:', insertError);
-        throw insertError;
-      }
-
-      // Use Supabase's built-in email functionality with magic link
-      const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email,
-        options: {
-          redirectTo: dashboardUrl,
-          data: {
-            organization_name: organization.name,
-            organization_slug: organization.slug,
-            inviter_email: user.email || 'Admin',
-            is_existing_user: true
-          }
-        }
-      });
-
-      if (magicLinkError) {
-        console.error('Magic link generation error:', magicLinkError);
+        console.error('Error adding existing user to organization:', insertError);
+        // Note: Email was sent but org assignment failed
         return new Response(JSON.stringify({
           success: false,
-          error: `Failed to generate access link: ${magicLinkError.message}`,
+          error: 'Email sent but failed to add user to organization. Please try again.',
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 500
         });
       }
 
-      console.log('Magic link generated successfully for existing user');
-
       return new Response(JSON.stringify({
         success: true,
-        message: 'User added to organization and access email sent',
+        message: 'User added to organization and invitation email sent',
         type: 'direct_add',
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log('Creating new user account...');
+    console.log('Creating new user and sending invitation email...');
 
-    // User doesn't exist, create new user account with email confirmation
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email: email,
-      email_confirm: false, // Don't auto-confirm, let them verify via email
-      user_metadata: {
-        organization_id: organizationId,
+    // For new users, use inviteUserByEmail which creates the user AND sends the email
+    const { data: newUserInvite, error: newUserInviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: dashboardUrl,
+      data: {
         organization_name: organization.name,
-        role: role,
-        enhanced_role: enhancedRole || role,
-        invited_by: user.id
-      }
-    });
-
-    if (createError) {
-      console.error('User creation error:', createError);
-      throw createError;
-    }
-
-    console.log('New user created successfully:', newUser.user.id);
-
-    // Add user to organization
-    const { error: orgInsertError } = await supabaseAdmin
-      .from('organization_users')
-      .insert({
-        user_id: newUser.user.id,
+        organization_slug: organization.slug,
         organization_id: organizationId,
-        email: email,
         role: role,
         enhanced_role: enhancedRole || role,
-        invited_by_user_id: user.id,
-        accepted_at: new Date().toISOString()
-      });
-
-    if (orgInsertError) {
-      console.error('Error adding new user to organization:', orgInsertError);
-      throw orgInsertError;
-    }
-
-    // Generate confirmation link for new user
-    const { data: confirmLinkData, error: confirmError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email: email,
-      options: {
-        redirectTo: dashboardUrl,
-        data: {
-          organization_name: organization.name,
-          organization_slug: organization.slug,
-          inviter_email: user.email || 'Admin',
-          is_new_user: true
-        }
+        inviter_email: user.email || 'Admin',
+        is_new_user: true
       }
     });
 
-    if (confirmError) {
-      console.error('Confirmation link generation error:', confirmError);
+    if (newUserInviteError) {
+      console.error('Email invitation error for new user:', newUserInviteError);
       return new Response(JSON.stringify({
         success: false,
-        error: `User created but failed to generate confirmation link: ${confirmError.message}`,
+        error: `Failed to send invitation email: ${newUserInviteError.message}`,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500
       });
     }
 
-    console.log('Confirmation link generated successfully for new user');
+    console.log('Invitation email sent successfully to new user');
+
+    // Get the newly invited user to add them to organization
+    // Note: inviteUserByEmail creates the user in auth.users
+    const { data: updatedUserData } = await supabaseAdmin.auth.admin.listUsers();
+    const newlyInvitedUser = updatedUserData?.users?.find(u => u.email === email);
+
+    if (newlyInvitedUser) {
+      // Add new user to organization
+      const { error: orgInsertError } = await supabaseAdmin
+        .from('organization_users')
+        .insert({
+          user_id: newlyInvitedUser.id,
+          organization_id: organizationId,
+          email: email,
+          role: role,
+          enhanced_role: enhancedRole || role,
+          invited_by_user_id: user.id,
+          accepted_at: new Date().toISOString()
+        });
+
+      if (orgInsertError) {
+        console.error('Error adding new user to organization:', orgInsertError);
+        // Note: User was created and email sent, but org assignment failed
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'User created and email sent, but failed to add to organization. Please try again.',
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        });
+      }
+    }
 
     // Create invitation record for tracking
     const { error: invitationError } = await supabaseAdmin
@@ -242,14 +241,15 @@ serve(async (req: Request) => {
 
     if (invitationError) {
       console.error('Invitation record error:', invitationError);
+      // This is non-critical, so we don't fail the whole operation
     }
 
-    console.log('Invitation process completed successfully');
+    console.log('User invitation process completed successfully');
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'User created successfully and invitation email sent',
-      type: 'user_created',
+      message: 'User invitation sent successfully via email',
+      type: 'user_invited',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

@@ -3,12 +3,14 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedLoadingSpinner } from '@/components/admin/dashboard/EnhancedLoadingSpinner';
+import { AuthService } from '@/services/authService';
 import type { EnhancedRole } from '@/utils/userManagementUtils';
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -16,11 +18,12 @@ const AuthCallback: React.FC = () => {
         console.log('Auth callback started');
         
         // Get the session after the auth callback
-        const { data, error } = await supabase.auth.getSession();
+        const { data, error: sessionError } = await supabase.auth.getSession();
         
-        if (error) {
-          console.error('Auth callback error:', error);
-          navigate('/auth?error=' + encodeURIComponent(error.message));
+        if (sessionError) {
+          console.error('Auth callback error:', sessionError);
+          setError(sessionError.message);
+          setTimeout(() => navigate('/auth?error=' + encodeURIComponent(sessionError.message)), 2000);
           return;
         }
 
@@ -44,28 +47,7 @@ const AuthCallback: React.FC = () => {
             return;
           }
 
-          // Handle email confirmation (signup) flow
-          if (isEmailConfirmation) {
-            console.log('Processing email confirmation');
-            
-            // Check if user has any organization memberships
-            const { data: userOrgs } = await supabase
-              .from('organization_users')
-              .select('organization_id, organizations(slug)')
-              .eq('user_id', data.session.user.id);
-
-            if (userOrgs && userOrgs.length > 0) {
-              const orgSlug = userOrgs[0].organizations?.slug;
-              console.log('User has existing org membership, redirecting to:', orgSlug);
-              navigate(`/admin/${orgSlug}`);
-            } else {
-              console.log('No org membership found, redirecting to create organization');
-              navigate('/create-organization');
-            }
-            return;
-          }
-
-          // Handle invitation flow
+          // Handle invitation flow for new users who need to set password
           if (isInvitation && userEmail && orgSlugFromUrl) {
             console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
             
@@ -80,94 +62,22 @@ const AuthCallback: React.FC = () => {
               return;
             }
             
-            // Get organization details
-            const { data: organization } = await supabase
-              .from('organizations')
-              .select('id, name, slug')
-              .eq('slug', orgSlugFromUrl)
-              .single();
+            // Handle existing user invitation
+            await handleExistingUserInvitation(data, orgSlugFromUrl, userEmail, userMetadata);
+            return;
+          }
 
-            if (!organization) {
-              console.error('Organization not found:', orgSlugFromUrl);
-              navigate('/auth?error=' + encodeURIComponent('Organization not found'));
-              return;
-            }
-
-            // Get invitation details from user metadata
-            const role = userMetadata?.role || 'member';
-            const enhancedRole = userMetadata?.enhanced_role || role;
-
-            console.log('Invitation details from metadata:', { role, enhancedRole });
-
-            // Check if user is already in organization
-            const { data: existingMembership } = await supabase
-              .from('organization_users')
-              .select('id')
-              .eq('user_id', data.session.user.id)
-              .eq('organization_id', organization.id)
-              .maybeSingle();
-
-            if (!existingMembership) {
-              // Add user to organization
-              const { error: addError } = await supabase
-                .from('organization_users')
-                .insert({
-                  user_id: data.session.user.id,
-                  organization_id: organization.id,
-                  email: userEmail,
-                  role: role,
-                  enhanced_role: enhancedRole as EnhancedRole,
-                  status: 'active',
-                  accepted_at: new Date().toISOString()
-                });
-
-              if (addError) {
-                console.error('Error adding user to organization:', addError);
-                navigate('/auth?error=' + encodeURIComponent('Failed to join organization'));
-                return;
-              }
-
-              console.log('User successfully added to organization');
-            } else {
-              console.log('User already in organization');
-            }
-
-            // Redirect to organization dashboard
-            console.log('Redirecting to organization dashboard:', orgSlugFromUrl);
-            navigate(`/admin/${orgSlugFromUrl}`);
+          // Handle email confirmation (signup) flow
+          if (isEmailConfirmation) {
+            console.log('Processing email confirmation');
+            const redirectPath = await AuthService.handlePostAuthRedirect(data.session.user);
+            navigate(redirectPath);
             return;
           }
 
           // Handle regular login flow
-          let targetOrgSlug = orgSlugFromUrl;
-          
-          if (!targetOrgSlug) {
-            // Check for existing organization membership
-            const { data: userOrgs } = await supabase
-              .from('organization_users')
-              .select('organization_id, organizations(slug)')
-              .eq('user_id', data.session.user.id)
-              .limit(1);
-
-            if (userOrgs && userOrgs.length > 0) {
-              targetOrgSlug = userOrgs[0].organizations?.slug;
-            }
-          }
-
-          if (targetOrgSlug) {
-            console.log('Redirecting to organization dashboard:', targetOrgSlug);
-            navigate(`/admin/${targetOrgSlug}`);
-          } else {
-            console.log('No organization context found, checking admin status');
-            
-            // Check if user is system admin
-            const { data: isAdmin } = await supabase.rpc("get_current_user_admin_status");
-            if (isAdmin) {
-              navigate("/admin");
-            } else {
-              navigate('/create-organization');
-            }
-          }
+          const redirectPath = await AuthService.handlePostAuthRedirect(data.session.user);
+          navigate(redirectPath);
         } else {
           // No session, redirect to auth
           console.log('No session found, redirecting to auth');
@@ -175,14 +85,93 @@ const AuthCallback: React.FC = () => {
         }
       } catch (error) {
         console.error('Callback processing error:', error);
-        navigate('/auth?error=' + encodeURIComponent('Authentication failed'));
+        setError('Authentication failed. Please try again.');
+        setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Authentication failed')), 2000);
       } finally {
         setLoading(false);
       }
     };
 
+    const handleExistingUserInvitation = async (data: any, orgSlugFromUrl: string, userEmail: string, userMetadata: any) => {
+      try {
+        // Get organization details
+        const { data: organization } = await supabase
+          .from('organizations')
+          .select('id, name, slug')
+          .eq('slug', orgSlugFromUrl)
+          .single();
+
+        if (!organization) {
+          console.error('Organization not found:', orgSlugFromUrl);
+          setError('Organization not found');
+          setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Organization not found')), 2000);
+          return;
+        }
+
+        // Get invitation details from user metadata
+        const role = userMetadata?.role || 'member';
+        const enhancedRole = userMetadata?.enhanced_role || role;
+
+        console.log('Invitation details from metadata:', { role, enhancedRole });
+
+        // Check if user is already in organization
+        const { data: existingMembership } = await supabase
+          .from('organization_users')
+          .select('id')
+          .eq('user_id', data.session.user.id)
+          .eq('organization_id', organization.id)
+          .maybeSingle();
+
+        if (!existingMembership) {
+          // Add user to organization
+          const { error: addError } = await supabase
+            .from('organization_users')
+            .insert({
+              user_id: data.session.user.id,
+              organization_id: organization.id,
+              email: userEmail,
+              role: role,
+              enhanced_role: enhancedRole as EnhancedRole,
+              status: 'active',
+              accepted_at: new Date().toISOString()
+            });
+
+          if (addError) {
+            console.error('Error adding user to organization:', addError);
+            setError('Failed to join organization');
+            setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to join organization')), 2000);
+            return;
+          }
+
+          console.log('User successfully added to organization');
+        } else {
+          console.log('User already in organization');
+        }
+
+        // Redirect to organization dashboard
+        console.log('Redirecting to organization dashboard:', orgSlugFromUrl);
+        navigate(`/admin/${orgSlugFromUrl}`);
+      } catch (error) {
+        console.error('Error handling existing user invitation:', error);
+        setError('Failed to process invitation');
+        setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
+      }
+    };
+
     handleAuthCallback();
   }, [navigate, searchParams]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">Authentication Error</div>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-sm text-gray-500">Redirecting you back to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

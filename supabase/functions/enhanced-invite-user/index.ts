@@ -7,6 +7,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const getBaseUrl = (req: Request): string => {
+  // Get the origin from the request headers
+  const origin = req.headers.get('origin');
+  if (origin) {
+    return origin;
+  }
+  
+  // Fallback to referer if origin is not available
+  const referer = req.headers.get('referer');
+  if (referer) {
+    try {
+      const url = new URL(referer);
+      return `${url.protocol}//${url.host}`;
+    } catch {
+      // If referer is malformed, continue to fallback
+    }
+  }
+  
+  // Final fallback to a default URL (this should be configured for production)
+  return 'https://pulsify.co.ke';
+};
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -147,10 +169,10 @@ serve(async (req: Request) => {
     }
 
     // User doesn't exist - send invitation
-    const baseUrl = req.headers.get('origin') || 'https://pulsify.co.ke';
+    const baseUrl = getBaseUrl(req);
     const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true`;
     
-    console.log('Using branded redirect URL:', redirectUrl);
+    console.log('Using redirect URL:', redirectUrl);
 
     // Use Supabase's built-in invitation system with organization context
     const { data: inviteResponse, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {

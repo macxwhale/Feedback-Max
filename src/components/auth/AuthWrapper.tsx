@@ -3,6 +3,7 @@ import React, { createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthState } from '@/hooks/useAuthState';
+import { AuthService } from '@/services/authService';
 
 interface AuthContextType {
   user: User | null;
@@ -36,6 +37,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const authState = useAuthState();
 
   const signIn = async (email: string, password: string) => {
+    // Clean up any existing auth state first
+    AuthService.cleanupAuthState();
+    
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error };
@@ -75,9 +79,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      AuthService.cleanupAuthState();
+      await supabase.auth.signOut({ scope: 'global' });
+      // Force page reload for clean state
+      window.location.href = '/auth';
     } catch (error) {
       console.error('Sign out error:', error);
+      // Force redirect even on error
+      window.location.href = '/auth';
     }
   };
 

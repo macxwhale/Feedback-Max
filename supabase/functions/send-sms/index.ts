@@ -64,8 +64,45 @@ serve(async (req) => {
           body: atData.toString()
         })
 
-        const atResult = await atResponse.json()
-        console.log(`Africa's Talking response for ${phoneNumber}:`, atResult)
+        console.log(`Africa's Talking response status: ${atResponse.status}`)
+        console.log(`Africa's Talking response headers:`, Object.fromEntries(atResponse.headers.entries()))
+
+        let atResult;
+        const responseText = await atResponse.text()
+        console.log(`Raw response for ${phoneNumber}:`, responseText)
+
+        // Try to parse as JSON, fallback to handling as text
+        try {
+          atResult = JSON.parse(responseText)
+        } catch (jsonError) {
+          console.error(`Failed to parse JSON response for ${phoneNumber}:`, jsonError)
+          console.log(`Response text:`, responseText)
+          
+          // Handle non-JSON response (likely an error)
+          let status = 'failed'
+          let errorMessage = responseText.includes('Invalid credentials') 
+            ? 'Invalid Africa\'s Talking credentials' 
+            : `API Error: ${responseText.substring(0, 100)}`
+
+          // Record the failed SMS send
+          await supabase
+            .from('sms_sends')
+            .insert({
+              campaign_id: campaignId,
+              organization_id: organizationId,
+              phone_number: phoneNumber,
+              message_content: message,
+              status: status,
+              error_message: errorMessage
+            })
+
+          results.push({
+            phoneNumber,
+            status,
+            error: errorMessage
+          })
+          continue
+        }
 
         let status = 'failed'
         let messageId = null

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
-import { Send, Plus, MessageSquare, Users, Play } from 'lucide-react';
+import { Send, Plus, MessageSquare, Users, Play, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export const SmsCampaigns: React.FC = () => {
@@ -82,7 +82,7 @@ export const SmsCampaigns: React.FC = () => {
   });
 
   const sendCampaignMutation = useMutation({
-    mutationFn: async (campaignId: string) => {
+    mutationFn: async ({ campaignId, isResend = false }: { campaignId: string; isResend?: boolean }) => {
       if (!phoneNumbers || phoneNumbers.length === 0) {
         throw new Error('No active phone numbers found');
       }
@@ -101,10 +101,28 @@ export const SmsCampaigns: React.FC = () => {
         })
         .eq('id', campaignId);
 
+      // For resend, only get failed phone numbers
+      let targetPhoneNumbers = phoneNumbers.map(p => p.phone_number);
+      
+      if (isResend) {
+        // Get failed sends for this campaign
+        const { data: failedSends } = await supabase
+          .from('sms_sends')
+          .select('phone_number')
+          .eq('campaign_id', campaignId)
+          .eq('status', 'failed');
+        
+        if (failedSends && failedSends.length > 0) {
+          targetPhoneNumbers = failedSends.map(s => s.phone_number);
+        } else {
+          throw new Error('No failed sends to retry for this campaign');
+        }
+      }
+
       // Call the send-sms edge function
       const { data, error } = await supabase.functions.invoke('send-sms', {
         body: {
-          phoneNumbers: phoneNumbers.map(p => p.phone_number),
+          phoneNumbers: targetPhoneNumbers,
           message: campaign.message_template,
           organizationId: organization!.id,
           campaignId: campaignId
@@ -114,10 +132,11 @@ export const SmsCampaigns: React.FC = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      const action = variables.isResend ? 'Resent' : 'Sent';
       toast({ 
-        title: "Campaign sent successfully",
-        description: `Sent to ${data.summary.sent} recipients`
+        title: `Campaign ${action.toLowerCase()} successfully`,
+        description: `${action} to ${data.summary.sent} recipients`
       });
       queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
     },
@@ -265,11 +284,22 @@ export const SmsCampaigns: React.FC = () => {
                         {campaign.status === 'draft' && (
                           <Button
                             size="sm"
-                            onClick={() => sendCampaignMutation.mutate(campaign.id)}
+                            onClick={() => sendCampaignMutation.mutate({ campaignId: campaign.id })}
                             disabled={sendCampaignMutation.isPending}
                           >
                             <Play className="w-4 h-4 mr-2" />
                             Send Now
+                          </Button>
+                        )}
+                        {(campaign.status === 'completed' && campaign.failed_count > 0) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => sendCampaignMutation.mutate({ campaignId: campaign.id, isResend: true })}
+                            disabled={sendCampaignMutation.isPending}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Resend Failed
                           </Button>
                         )}
                       </div>
@@ -287,7 +317,7 @@ export const SmsCampaigns: React.FC = () => {
                           <div className="text-xs text-muted-foreground">Recipients</div>
                         </div>
                         <div className="text-center">
-                          <div className="font-medium">{campaign.sent_count}</div>
+                          <div className="font-medium text-green-600">{campaign.sent_count}</div>
                           <div className="text-xs text-muted-foreground">Sent</div>
                         </div>
                         <div className="text-center">
@@ -295,8 +325,8 @@ export const SmsCampaigns: React.FC = () => {
                           <div className="text-xs text-muted-foreground">Delivered</div>
                         </div>
                         <div className="text-center">
-                          <div className="font-medium">{campaign.response_count}</div>
-                          <div className="text-xs text-muted-foreground">Responses</div>
+                          <div className="font-medium text-red-600">{campaign.failed_count}</div>
+                          <div className="text-xs text-muted-foreground">Failed</div>
                         </div>
                       </div>
                     </div>

@@ -289,9 +289,7 @@ async function sendSMSResponse(org: any, to: string, message: string, supabase: 
       atData.append('from', org.sms_sender_id)
     }
 
-    const response = await fetch('https://api.africastal
-
-ing.com/version1/messaging', {
+    const response = await fetch('https://api.africastalking.com/version1/messaging', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

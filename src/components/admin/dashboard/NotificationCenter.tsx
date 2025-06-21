@@ -152,64 +152,62 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 <p className="text-sm text-gray-400">You're all caught up!</p>
               </div>
             ) : (
-              notifications.map((notification) => {
-                return (
-                  <div
-                    key={notification.id}
-                    className={`p-3 border rounded-lg transition-all duration-200 hover:shadow-sm ${
-                      !notification.is_read 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200' 
-                        : 'bg-white dark:bg-gray-800 border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-3 flex-1">
-                        {getIcon(notification.type)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between">
-                            <p className={`font-medium text-sm truncate ${
-                              !notification.is_read ? 'text-gray-900' : 'text-gray-700'
-                            }`}>
-                              {notification.title}
-                            </p>
-                            {!notification.is_read && (
-                              <div className="w-2 h-2 bg-blue-600 rounded-full ml-2 mt-1 flex-shrink-0" />
-                            )}
-                          </div>
-                          <pClassName="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                            {notification.message}
+              notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`p-3 border rounded-lg transition-all duration-200 hover:shadow-sm ${
+                    !notification.is_read 
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200' 
+                      : 'bg-white dark:bg-gray-800 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3 flex-1">
+                      {getIcon(notification.type)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <p className={`font-medium text-sm truncate ${
+                            !notification.is_read ? 'text-gray-900' : 'text-gray-700'
+                          }`}>
+                            {notification.title}
                           </p>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                          </p>
+                          {!notification.is_read && (
+                            <div className="w-2 h-2 bg-blue-600 rounded-full ml-2 mt-1 flex-shrink-0" />
+                          )}
                         </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                        </p>
                       </div>
-                      <div className="flex items-center space-x-1 shrink-0 pl-2">
-                        {!notification.is_read && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Mark as read"
-                            onClick={() => handleMarkAsRead(notification.id)}
-                            className="h-7 w-7 p-0 hover:bg-green-100"
-                          >
-                            <CheckCircle className="w-4 h-4 text-gray-500 hover:text-green-600" />
-                          </Button>
-                        )}
+                    </div>
+                    <div className="flex items-center space-x-1 shrink-0 pl-2">
+                      {!notification.is_read && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          title="Dismiss"
-                          onClick={() => handleDismiss(notification.id)}
-                          className="h-7 w-7 p-0 hover:bg-red-100"
+                          title="Mark as read"
+                          onClick={() => handleMarkAsRead(notification.id)}
+                          className="h-7 w-7 p-0 hover:bg-green-100"
                         >
-                          <X className="w-4 h-4 text-gray-500 hover:text-red-600" />
+                          <CheckCircle className="w-4 h-4 text-gray-500 hover:text-green-600" />
                         </Button>
-                      </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Dismiss"
+                        onClick={() => handleDismiss(notification.id)}
+                        className="h-7 w-7 p-0 hover:bg-red-100"
+                      >
+                        <X className="w-4 h-4 text-gray-500 hover:text-red-600" />
+                      </Button>
                     </div>
                   </div>
-                );
-              })
+                </div>
+              ))
             )}
           </div>
         </ScrollArea>

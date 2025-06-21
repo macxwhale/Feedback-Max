@@ -4,7 +4,8 @@ import { WebhookSettings } from '@/components/admin/WebhookSettings';
 import { ApiManagement } from '@/components/admin/integrations/ApiManagement';
 import { SmsIntegrations } from '@/components/admin/integrations/SmsIntegrations';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { useAuth } from '@/components/auth/AuthWrapper';
+import { useOrganization } from '@/hooks/useOrganization';
 
 const CrmIntegrationPlaceholder: React.FC = () => (
     <Card>
@@ -19,32 +20,36 @@ const CrmIntegrationPlaceholder: React.FC = () => (
 );
 
 export const IntegrationsTab: React.FC = () => {
-  return (
-    <PermissionGuard 
-      permission="manage_organization" 
-      showRequiredRole={true}
-      fallback={
-        <div className="text-center p-8">
-          <p className="text-gray-500">You need organization admin access to manage integrations.</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Contact your organization administrator for access.
-          </p>
-        </div>
-      }
-    >
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold">Integrations</h2>
-        <p className="text-muted-foreground">
-          Connect your organization to other services and automate your workflows.
+  const { isAdmin, isOrgAdmin } = useAuth();
+  const { organization } = useOrganization();
+
+  // Check if user has admin access (either system admin or org admin)
+  const hasAdminAccess = isAdmin || isOrgAdmin;
+
+  if (!hasAdminAccess) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-gray-500">You need organization admin access to manage integrations.</p>
+        <p className="text-sm text-gray-400 mt-2">
+          Contact your organization administrator for access.
         </p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SmsIntegrations />
-          <WebhookSettings />
-          <ApiManagement />
-          <CrmIntegrationPlaceholder />
-        </div>
       </div>
-    </PermissionGuard>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Integrations</h2>
+      <p className="text-muted-foreground">
+        Connect your organization to other services and automate your workflows.
+      </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SmsIntegrations />
+        <WebhookSettings />
+        <ApiManagement />
+        <CrmIntegrationPlaceholder />
+      </div>
+    </div>
   );
 };
 

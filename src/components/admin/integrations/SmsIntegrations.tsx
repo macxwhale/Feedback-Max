@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOrganization } from '@/hooks/useOrganization';
+import { useAuth } from '@/components/auth/AuthWrapper';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import { MessageSquare } from 'lucide-react';
@@ -15,8 +16,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 export const SmsIntegrations: React.FC = () => {
   const { organization } = useOrganization();
+  const { isAdmin, isOrgAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+
+  // Check if user has admin access
+  const hasAdminAccess = isAdmin || isOrgAdmin;
 
   const { data: orgData, isLoading } = useQuery({
     queryKey: ['organization-sms', organization?.id],
@@ -31,7 +36,7 @@ export const SmsIntegrations: React.FC = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!organization?.id,
+    enabled: !!organization?.id && hasAdminAccess,
   });
 
   const updateSmsStatus = useMutation({
@@ -64,6 +69,24 @@ export const SmsIntegrations: React.FC = () => {
   const handleToggleSms = (enabled: boolean) => {
     updateSmsStatus.mutate(enabled);
   };
+
+  if (!hasAdminAccess) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" />
+            SMS Integrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            You need admin access to manage SMS integrations.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return (

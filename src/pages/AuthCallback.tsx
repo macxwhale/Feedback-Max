@@ -24,76 +24,140 @@ const AuthCallback: React.FC = () => {
         if (data.session?.user) {
           console.log('User authenticated successfully:', data.session.user.email);
           
-          // Process the invitation if user has organization metadata
-          const orgId = data.session.user.user_metadata?.organization_id;
-          const orgSlug = data.session.user.user_metadata?.organization_slug;
+          const userEmail = data.session.user.email;
+          const orgSlugFromUrl = searchParams.get('org');
           
-          if (orgId && orgSlug) {
-            console.log('Processing organization invitation for:', orgSlug);
+          console.log('Organization slug from URL:', orgSlugFromUrl);
+          console.log('User metadata:', data.session.user.user_metadata);
+
+          // Process invitation acceptance - check for pending invitations for this user
+          if (userEmail) {
+            console.log('Looking for pending invitations for:', userEmail);
             
-            // Check if user is already in organization
-            const { data: orgUser } = await supabase
-              .from('organization_users')
-              .select('id')
-              .eq('user_id', data.session.user.id)
-              .eq('organization_id', orgId)
-              .maybeSingle();
+            // Look for pending invitations for this user
+            const { data: pendingInvitations, error: invitationError } = await supabase
+              .from('user_invitations')
+              .select(`
+                id,
+                organization_id,
+                role,
+                enhanced_role,
+                invited_by_user_id,
+                organizations!inner(slug, name)
+              `)
+              .eq('email', userEmail)
+              .eq('status', 'pending')
+              .order('created_at', { ascending: false });
 
-            if (!orgUser) {
-              // Add user to organization from metadata
-              const { error: orgError } = await supabase
+            if (invitationError) {
+              console.error('Error fetching invitations:', invitationError);
+            } else if (pendingInvitations && pendingInvitations.length > 0) {
+              console.log('Found pending invitations:', pendingInvitations.length);
+              
+              // Process the most recent invitation or one matching the org slug
+              let invitationToProcess = pendingInvitations[0];
+              
+              if (orgSlugFromUrl) {
+                const matchingInvitation = pendingInvitations.find(
+                  inv => inv.organizations.slug === orgSlugFromUrl
+                );
+                if (matchingInvitation) {
+                  invitationToProcess = matchingInvitation;
+                }
+              }
+
+              console.log('Processing invitation:', invitationToProcess);
+
+              // Check if user is already in this organization
+              const { data: existingOrgUser } = await supabase
                 .from('organization_users')
-                .insert({
-                  user_id: data.session.user.id,
-                  organization_id: orgId,
-                  email: data.session.user.email,
-                  role: data.session.user.user_metadata?.role || 'member',
-                  enhanced_role: data.session.user.user_metadata?.enhanced_role || 'member',
-                  invited_by_user_id: data.session.user.user_metadata?.invited_by_user_id,
-                  accepted_at: new Date().toISOString()
-                });
+                .select('id')
+                .eq('user_id', data.session.user.id)
+                .eq('organization_id', invitationToProcess.organization_id)
+                .maybeSingle();
 
-              if (orgError) {
-                console.error('Error adding user to organization:', orgError);
+              if (!existingOrgUser) {
+                // Add user to organization
+                const { error: orgError } = await supabase
+                  .from('organization_users')
+                  .insert({
+                    user_id: data.session.user.id,
+                    organization_id: invitationToProcess.organization_id,
+                    email: userEmail,
+                    role: invitationToProcess.role,
+                    enhanced_role: invitationToProcess.enhanced_role || invitationToProcess.role,
+                    invited_by_user_id: invitationToProcess.invited_by_user_id,
+                    accepted_at: new Date().toISOString()
+                  });
+
+                if (orgError) {
+                  console.error('Error adding user to organization:', orgError);
+                } else {
+                  console.log('User added to organization successfully');
+                  
+                  // Update invitation status to accepted
+                  await supabase
+                    .from('user_invitations')
+                    .update({ 
+                      status: 'accepted',
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', invitationToProcess.id);
+                  
+                  console.log('Invitation marked as accepted');
+                }
               } else {
-                console.log('User added to organization successfully');
+                console.log('User already in organization, marking invitation as accepted');
                 
-                // Update invitation status
+                // Still mark invitation as accepted even if user was already in org
                 await supabase
                   .from('user_invitations')
                   .update({ 
                     status: 'accepted',
                     updated_at: new Date().toISOString()
                   })
-                  .eq('email', data.session.user.email)
-                  .eq('organization_id', orgId);
+                  .eq('id', invitationToProcess.id);
               }
-            }
-            
-            // Redirect to organization dashboard
-            navigate(`/admin/${orgSlug}`);
-            return;
-          }
-
-          // Check for organization context from existing membership
-          const { data: userOrgs } = await supabase
-            .from('organization_users')
-            .select('organization_id, organizations(slug)')
-            .eq('user_id', data.session.user.id)
-            .limit(1);
-
-          if (userOrgs && userOrgs.length > 0) {
-            const orgSlug = userOrgs[0].organizations?.slug;
-            if (orgSlug) {
+              
+              // Redirect to organization dashboard
+              const orgSlug = invitationToProcess.organizations.slug;
+              console.log('Redirecting to organization:', orgSlug);
               navigate(`/admin/${orgSlug}`);
               return;
             }
           }
 
-          // Default redirect to admin if no specific org
-          navigate('/admin');
+          // Fallback: Check for organization context from existing membership or metadata
+          let targetOrgSlug = orgSlugFromUrl;
+          
+          if (!targetOrgSlug) {
+            // Try to get from user metadata (legacy flow)
+            targetOrgSlug = data.session.user.user_metadata?.organization_slug;
+          }
+          
+          if (!targetOrgSlug) {
+            // Check for existing organization membership
+            const { data: userOrgs } = await supabase
+              .from('organization_users')
+              .select('organization_id, organizations(slug)')
+              .eq('user_id', data.session.user.id)
+              .limit(1);
+
+            if (userOrgs && userOrgs.length > 0) {
+              targetOrgSlug = userOrgs[0].organizations?.slug;
+            }
+          }
+
+          if (targetOrgSlug) {
+            console.log('Redirecting to organization dashboard:', targetOrgSlug);
+            navigate(`/admin/${targetOrgSlug}`);
+          } else {
+            console.log('No organization context found, redirecting to general admin');
+            navigate('/admin');
+          }
         } else {
           // No session, redirect to auth
+          console.log('No session found, redirecting to auth');
           navigate('/auth');
         }
       } catch (error) {
@@ -111,8 +175,8 @@ const AuthCallback: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <EnhancedLoadingSpinner text="Processing authentication..." />
-          <p className="mt-4 text-gray-600">Please wait while we set up your account...</p>
+          <EnhancedLoadingSpinner text="Processing invitation..." />
+          <p className="mt-4 text-gray-600">Setting up your account access...</p>
         </div>
       </div>
     );

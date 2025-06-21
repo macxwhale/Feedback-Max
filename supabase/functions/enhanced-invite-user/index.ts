@@ -106,117 +106,34 @@ serve(async (req: Request) => {
       });
     }
 
-    // Check if there's an existing user with this email
-    const { data: existingUserData, error: listUsersError } = await supabaseAdmin.auth.admin.listUsers();
-    
-    if (listUsersError) {
-      console.error('Error listing users:', listUsersError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to check existing users',
+    // Check if there's already a pending invitation
+    const { data: existingInvitation } = await supabaseAdmin
+      .from('user_invitations')
+      .select('id, status')
+      .eq('email', email)
+      .eq('organization_id', organizationId)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existingInvitation) {
+      console.log('Invitation already exists for this email');
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'An invitation is already pending for this email' 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
+        status: 400
       });
     }
-    
-    const existingUser = existingUserData?.users?.find(u => u.email === email);
-    
+
     // Create proper redirect URL for the organization dashboard
     const baseUrl = req.headers.get('origin') || 'https://pulsify.co.ke';
-    const redirectUrl = `${baseUrl}/admin/${organization.slug}`;
+    const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}`;
     
     console.log('Using redirect URL:', redirectUrl);
 
-    if (existingUser) {
-      console.log('Existing user found, sending invitation...');
-      
-      // For existing users, use inviteUserByEmail which will send a reset password email
-      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        redirectTo: redirectUrl,
-        data: {
-          organization_name: organization.name,
-          organization_slug: organization.slug,
-          organization_id: organizationId,
-          role: role,
-          enhanced_role: enhancedRole || role,
-          inviter_email: user.email || 'Admin'
-        }
-      });
-
-      if (inviteError) {
-        console.error('Failed to send invitation to existing user:', inviteError);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Failed to send invitation email: ' + inviteError.message,
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500
-        });
-      }
-
-      // Add existing user to organization
-      const { error: insertError } = await supabaseAdmin
-        .from('organization_users')
-        .insert({
-          user_id: existingUser.id,
-          organization_id: organizationId,
-          email: email,
-          role: role,
-          enhanced_role: enhancedRole || role,
-          invited_by_user_id: user.id,
-          accepted_at: new Date().toISOString()
-        });
-
-      if (insertError) {
-        console.error('Error adding existing user to organization:', insertError);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Email sent but failed to add user to organization. Please try again.',
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500
-        });
-      }
-
-      console.log('Existing user added to organization successfully');
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'User added to organization and invitation email sent',
-        type: 'existing_user_invited',
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.log('New user invitation - sending invite...');
-
-    // For new users, use inviteUserByEmail which will create the user and send setup email
-    const { data: newUserInvite, error: newUserInviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: redirectUrl,
-      data: {
-        organization_name: organization.name,
-        organization_slug: organization.slug,
-        organization_id: organizationId,
-        role: role,
-        enhanced_role: enhancedRole || role,
-        inviter_email: user.email || 'Admin'
-      }
-    });
-
-    if (newUserInviteError) {
-      console.error('Failed to send invitation to new user:', newUserInviteError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to send invitation email: ' + newUserInviteError.message,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      });
-    }
-
-    // Create invitation record for tracking
-    const { error: invitationError } = await supabaseAdmin
+    // Always create invitation record first - this is the source of truth
+    const { data: invitationData, error: invitationError } = await supabaseAdmin
       .from('user_invitations')
       .insert({
         email: email,
@@ -225,19 +142,62 @@ serve(async (req: Request) => {
         enhanced_role: enhancedRole || role,
         invited_by_user_id: user.id,
         status: 'pending'
-      });
+      })
+      .select()
+      .single();
 
     if (invitationError) {
-      console.error('Invitation record error:', invitationError);
-      // This is non-critical, so we don't fail the whole operation
+      console.error('Failed to create invitation record:', invitationError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed to create invitation record: ' + invitationError.message,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      });
     }
 
-    console.log('New user invitation sent successfully');
+    console.log('Invitation record created:', invitationData.id);
+
+    // Send invitation email with organization context in metadata
+    const { data: inviteResponse, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: redirectUrl,
+      data: {
+        organization_name: organization.name,
+        organization_slug: organization.slug,
+        organization_id: organizationId,
+        role: role,
+        enhanced_role: enhancedRole || role,
+        invitation_id: invitationData.id,
+        inviter_email: user.email || 'Admin'
+      }
+    });
+
+    if (inviteError) {
+      console.error('Failed to send invitation email:', inviteError);
+      
+      // Clean up the invitation record since email sending failed
+      await supabaseAdmin
+        .from('user_invitations')
+        .delete()
+        .eq('id', invitationData.id);
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed to send invitation email: ' + inviteError.message,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      });
+    }
+
+    console.log('Invitation email sent successfully');
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Invitation sent successfully. The user will receive an email to set their password and join the organization.',
-      type: 'new_user_invited',
+      message: 'Invitation sent successfully. The user will receive an email to join the organization.',
+      invitation_id: invitationData.id,
+      type: 'invitation_sent',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

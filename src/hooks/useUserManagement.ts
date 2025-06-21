@@ -77,6 +77,7 @@ export const useUserManagement = (organizationId: string) => {
         `)
         .eq('organization_id', organizationId)
         .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString()) // Only show non-expired invitations
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -152,7 +153,10 @@ export const useUserManagement = (organizationId: string) => {
     mutationFn: async (invitationId: string) => {
       const { error } = await supabase
         .from('user_invitations')
-        .update({ status: 'cancelled' })
+        .update({ 
+          status: 'cancelled', 
+          updated_at: new Date().toISOString() 
+        })
         .eq('id', invitationId);
 
       if (error) throw error;

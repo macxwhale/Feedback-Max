@@ -14,7 +14,7 @@ serve(async (req: Request) => {
 
   try {
     const { email, organizationId, role, enhancedRole } = await req.json();
-    console.log('Processing enhanced invite for:', email, 'to organization:', organizationId);
+    console.log('Processing simplified invite for:', email, 'to organization:', organizationId);
 
     // Validate input
     if (!email || !organizationId || !role) {
@@ -106,13 +106,13 @@ serve(async (req: Request) => {
       });
     }
 
-    // Create branded redirect URL to your custom auth page
+    // Create simplified redirect URL
     const baseUrl = req.headers.get('origin') || 'https://pulsify.co.ke';
-    const redirectUrl = `${baseUrl}/auth?invitation=true&org=${organization.slug}&email=${encodeURIComponent(email)}`;
+    const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true`;
     
-    console.log('Using branded redirect URL:', redirectUrl);
+    console.log('Using simplified redirect URL:', redirectUrl);
 
-    // Use Supabase's built-in invitation system with branded redirect
+    // Use Supabase's built-in invitation system with organization context
     const { data: inviteResponse, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       redirectTo: redirectUrl,
       data: {
@@ -137,18 +137,18 @@ serve(async (req: Request) => {
       });
     }
 
-    console.log('Invitation email sent successfully via Supabase with branded redirect');
+    console.log('Invitation email sent successfully via Supabase');
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Invitation sent successfully. The user will receive an email to join the organization with your branded experience.',
+      message: 'Invitation sent successfully. The user will receive an email to join the organization.',
       type: 'invitation_sent',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in enhanced-invite-user:', error);
+    console.error('Error in simplified enhanced-invite-user:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       error: error.message || 'An error occurred while inviting the user' 

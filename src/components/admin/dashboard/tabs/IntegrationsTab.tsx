@@ -20,7 +20,7 @@ const CrmIntegrationPlaceholder: React.FC = () => (
 export const IntegrationsTab: React.FC = () => {
   return (
     <PermissionGuard 
-      permission="manage_integrations" 
+      permission="manage_organization" 
       showRequiredRole={true}
       fallback={
         <div className="text-center p-8">

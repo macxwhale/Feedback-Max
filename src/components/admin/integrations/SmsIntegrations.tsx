@@ -43,6 +43,14 @@ const smsProviders: SmsProvider[] = [
   }
 ];
 
+// Helper function to safely access sms_settings properties
+const getSmsSettingsValue = (smsSettings: any, key: string): string => {
+  if (smsSettings && typeof smsSettings === 'object' && !Array.isArray(smsSettings)) {
+    return smsSettings[key] || '';
+  }
+  return '';
+};
+
 export const SmsIntegrations: React.FC = () => {
   const { organization } = useOrganization();
   const queryClient = useQueryClient();
@@ -71,8 +79,8 @@ export const SmsIntegrations: React.FC = () => {
           orgId: organization!.id,
           enabled,
           senderId: orgData?.sms_sender_id || '',
-          username: orgData?.sms_settings?.username || '',
-          apiKey: orgData?.sms_settings?.apiKey || ''
+          username: getSmsSettingsValue(orgData?.sms_settings, 'username'),
+          apiKey: getSmsSettingsValue(orgData?.sms_settings, 'apiKey')
         }
       });
       if (error) throw error;

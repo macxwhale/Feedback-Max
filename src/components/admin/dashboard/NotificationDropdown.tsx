@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, CheckCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { Bell, CheckCircle, AlertTriangle, Info, X, Check, Trash2 } from 'lucide-react';
 import { useRealtimeNotifications, Notification } from '@/hooks/useRealtimeNotifications';
 import { formatDistanceToNow } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,9 +22,15 @@ interface NotificationDropdownProps {
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   organizationId
 }) => {
-  const { notifications, isLoading, markAsRead, removeNotification } = useRealtimeNotifications(organizationId);
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const { 
+    notifications, 
+    isLoading, 
+    error,
+    markAsRead, 
+    markAllAsRead,
+    removeNotification,
+    unreadCount
+  } = useRealtimeNotifications(organizationId);
 
   const getIcon = (type: Notification['type']) => {
     switch (type) {
@@ -35,6 +41,9 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       default: return <Info className="w-4 h-4" />;
     }
   };
+
+  // Show only recent notifications in dropdown (last 10)
+  const recentNotifications = notifications.slice(0, 10);
 
   return (
     <DropdownMenu>
@@ -52,27 +61,64 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
-        <div className="p-2 font-semibold">Notifications</div>
+        <div className="p-2 flex items-center justify-between">
+          <span className="font-semibold">Notifications</span>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={markAllAsRead}
+              className="text-xs h-6 px-2"
+            >
+              <Check className="w-3 h-3 mr-1" />
+              Mark all read
+            </Button>
+          )}
+        </div>
         <DropdownMenuSeparator />
-        {isLoading ? (
-            <div className="p-2 space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-        ) : notifications.length === 0 ? (
+        
+        {error ? (
+          <div className="p-4 text-center text-red-500 text-sm">
+            <AlertTriangle className="w-4 h-4 mx-auto mb-1" />
+            Failed to load notifications
+          </div>
+        ) : isLoading ? (
+          <div className="p-2 space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        ) : recentNotifications.length === 0 ? (
           <div className="p-4 text-center text-gray-500 text-sm">
+            <Bell className="w-4 h-4 mx-auto mb-1 opacity-50" />
             You're all caught up!
           </div>
         ) : (
-          <ScrollArea className="h-[400px]">
-            {notifications.map((notification) => (
-              <DropdownMenuItem key={notification.id} className="p-0" onSelect={(e) => e.preventDefault()}>
-                <div className={`w-full p-3 ${!notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+          <ScrollArea className="max-h-[400px]">
+            {recentNotifications.map((notification) => (
+              <DropdownMenuItem 
+                key={notification.id} 
+                className="p-0" 
+                onSelect={(e) => e.preventDefault()}
+              >
+                <div className={`w-full p-3 ${
+                  !notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                }`}>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
+                    <div className="flex items-start space-x-3 flex-1 min-w-0">
                       {getIcon(notification.type)}
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{notification.title}</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">{notification.message}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <p className="text-sm font-medium truncate">
+                            {notification.title}
+                          </p>
+                          {!notification.is_read && (
+                            <div className="w-2 h-2 bg-blue-600 rounded-full ml-2 mt-1 flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
+                          {notification.message}
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                           {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                         </p>
@@ -88,7 +134,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                             e.stopPropagation();
                             markAsRead(notification.id);
                           }}
-                          className="h-7 w-7 p-0"
+                          className="h-7 w-7 p-0 hover:bg-green-100"
                         >
                           <CheckCircle className="w-4 h-4 text-gray-500 hover:text-green-600" />
                         </Button>
@@ -101,7 +147,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                           e.stopPropagation();
                           removeNotification(notification.id);
                         }}
-                        className="h-7 w-7 p-0"
+                        className="h-7 w-7 p-0 hover:bg-red-100"
                       >
                         <X className="w-4 h-4 text-gray-500 hover:text-red-600" />
                       </Button>
@@ -110,6 +156,16 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                 </div>
               </DropdownMenuItem>
             ))}
+            {notifications.length > 10 && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="p-2 text-center">
+                  <span className="text-xs text-gray-500">
+                    {notifications.length - 10} more notifications...
+                  </span>
+                </div>
+              </>
+            )}
           </ScrollArea>
         )}
       </DropdownMenuContent>

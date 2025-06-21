@@ -4,12 +4,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useAuth } from '@/components/auth/AuthWrapper';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/use-toast';
 import { MessageSquare } from 'lucide-react';
 import { AfricasTalkingSettings } from './sms/AfricasTalkingSettings';
 import { SmsStatusToggle } from './sms/SmsStatusToggle';
 import { WebhookUrlDisplay } from './sms/WebhookUrlDisplay';
 import { SmsProvidersList } from './sms/SmsProvidersList';
+import { PhoneNumberManagement } from './sms/PhoneNumberManagement';
+import { SmsCampaigns } from './sms/SmsCampaigns';
 import { smsProviders } from './sms/smsProviders';
 import { getSmsSettingsValue } from './sms/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -107,45 +110,75 @@ export const SmsIntegrations: React.FC = () => {
     );
   }
 
+  const isSmsConfigured = orgData?.sms_enabled && 
+    getSmsSettingsValue(orgData?.sms_settings, 'username') && 
+    getSmsSettingsValue(orgData?.sms_settings, 'apiKey');
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquare className="w-5 h-5" />
-          SMS Integrations
-        </CardTitle>
-        <CardDescription>
-          Enable SMS feedback collection from your customers
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <SmsStatusToggle
-          enabled={orgData?.sms_enabled || false}
-          onToggle={handleToggleSms}
-          isLoading={updateSmsStatus.isPending}
-        />
-
-        <WebhookUrlDisplay
-          webhookSecret={orgData?.webhook_secret || ''}
-          isVisible={orgData?.sms_enabled || false}
-        />
-
-        <SmsProvidersList
-          providers={smsProviders}
-          selectedProvider={selectedProvider}
-          onProviderSelect={setSelectedProvider}
-        />
-
-        {selectedProvider === 'africastalking' && (
-          <AfricasTalkingSettings 
-            organization={organization!}
-            currentSettings={orgData}
-            onSettingsUpdate={() => {
-              queryClient.invalidateQueries({ queryKey: ['organization-sms', organization?.id] });
-            }}
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" />
+            SMS Integrations
+          </CardTitle>
+          <CardDescription>
+            Enable SMS feedback collection from your customers
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SmsStatusToggle
+            enabled={orgData?.sms_enabled || false}
+            onToggle={handleToggleSms}
+            isLoading={updateSmsStatus.isPending}
           />
-        )}
-      </CardContent>
-    </Card>
+
+          <WebhookUrlDisplay
+            webhookSecret={orgData?.webhook_secret || ''}
+            isVisible={orgData?.sms_enabled || false}
+          />
+
+          <SmsProvidersList
+            providers={smsProviders}
+            selectedProvider={selectedProvider}
+            onProviderSelect={setSelectedProvider}
+          />
+
+          {selectedProvider === 'africastalking' && (
+            <AfricasTalkingSettings 
+              organization={organization!}
+              currentSettings={orgData}
+              onSettingsUpdate={() => {
+                queryClient.invalidateQueries({ queryKey: ['organization-sms', organization?.id] });
+              }}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* SMS Management Tabs - Only show if SMS is configured */}
+      {isSmsConfigured && (
+        <Card>
+          <CardContent className="p-0">
+            <Tabs defaultValue="phone-numbers" className="w-full">
+              <div className="px-6 pt-6">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="phone-numbers">Phone Numbers</TabsTrigger>
+                  <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+                </TabsList>
+              </div>
+              
+              <TabsContent value="phone-numbers" className="px-6 pb-6">
+                <PhoneNumberManagement />
+              </TabsContent>
+              
+              <TabsContent value="campaigns" className="px-6 pb-6">
+                <SmsCampaigns />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 };

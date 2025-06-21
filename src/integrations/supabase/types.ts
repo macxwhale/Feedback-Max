@@ -1002,6 +1002,74 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_campaigns: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by_user_id: string | null
+          delivered_count: number | null
+          failed_count: number | null
+          id: string
+          message_template: string
+          metadata: Json | null
+          name: string
+          organization_id: string
+          response_count: number | null
+          scheduled_at: string | null
+          sent_count: number | null
+          started_at: string | null
+          status: string
+          total_recipients: number | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          delivered_count?: number | null
+          failed_count?: number | null
+          id?: string
+          message_template: string
+          metadata?: Json | null
+          name: string
+          organization_id: string
+          response_count?: number | null
+          scheduled_at?: string | null
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          total_recipients?: number | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by_user_id?: string | null
+          delivered_count?: number | null
+          failed_count?: number | null
+          id?: string
+          message_template?: string
+          metadata?: Json | null
+          name?: string
+          organization_id?: string
+          response_count?: number | null
+          scheduled_at?: string | null
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          total_recipients?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_conversations: {
         Row: {
           africastalking_message_id: string | null
@@ -1036,6 +1104,120 @@ export type Database = {
             columns: ["sms_session_id"]
             isOneToOne: false
             referencedRelation: "sms_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_phone_numbers: {
+        Row: {
+          created_at: string
+          created_by_user_id: string | null
+          id: string
+          metadata: Json | null
+          name: string | null
+          organization_id: string
+          phone_number: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          organization_id: string
+          phone_number: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          organization_id?: string
+          phone_number?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_phone_numbers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_sends: {
+        Row: {
+          africastalking_message_id: string | null
+          campaign_id: string | null
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          message_content: string
+          organization_id: string
+          phone_number: string
+          phone_number_id: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          africastalking_message_id?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content: string
+          organization_id: string
+          phone_number: string
+          phone_number_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          africastalking_message_id?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_content?: string
+          organization_id?: string
+          phone_number?: string
+          phone_number_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_sends_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "sms_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_sends_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_sends_phone_number_id_fkey"
+            columns: ["phone_number_id"]
+            isOneToOne: false
+            referencedRelation: "sms_phone_numbers"
             referencedColumns: ["id"]
           },
         ]

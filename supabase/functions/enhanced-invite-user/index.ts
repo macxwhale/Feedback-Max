@@ -14,7 +14,7 @@ serve(async (req: Request) => {
 
   try {
     const { email, organizationId, role, enhancedRole } = await req.json();
-    console.log('Processing simplified invite for:', email, 'to organization:', organizationId);
+    console.log('Processing enhanced invite for:', email, 'to organization:', organizationId);
 
     // Validate input
     if (!email || !organizationId || !role) {
@@ -22,7 +22,7 @@ serve(async (req: Request) => {
         success: false, 
         error: 'Missing required fields: email, organizationId, and role are required' 
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type':'' } json' },
         status: 400
       });
     }
@@ -106,11 +106,11 @@ serve(async (req: Request) => {
       });
     }
 
-    // Create simplified redirect URL
+    // Create branded redirect URL that goes to auth-callback
     const baseUrl = req.headers.get('origin') || 'https://pulsify.co.ke';
     const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true`;
     
-    console.log('Using simplified redirect URL:', redirectUrl);
+    console.log('Using branded redirect URL:', redirectUrl);
 
     // Use Supabase's built-in invitation system with organization context
     const { data: inviteResponse, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
@@ -148,7 +148,7 @@ serve(async (req: Request) => {
     });
 
   } catch (error) {
-    console.error('Error in simplified enhanced-invite-user:', error);
+    console.error('Error in enhanced-invite-user:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       error: error.message || 'An error occurred while inviting the user' 

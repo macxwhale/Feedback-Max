@@ -13,6 +13,8 @@ const AuthCallback: React.FC = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        console.log('Auth callback started');
+        
         // Get the session after the auth callback
         const { data, error } = await supabase.auth.getSession();
         
@@ -23,16 +25,38 @@ const AuthCallback: React.FC = () => {
         }
 
         if (data.session?.user) {
-          console.log('User authenticated successfully:', data.session.user.email);
-          
           const userEmail = data.session.user.email;
           const orgSlugFromUrl = searchParams.get('org');
           const isInvitation = searchParams.get('invitation') === 'true';
+          const isEmailConfirmation = searchParams.get('type') === 'signup';
           
-          console.log('Organization slug from URL:', orgSlugFromUrl);
-          console.log('Is invitation flow:', isInvitation);
+          console.log('Auth callback - User:', userEmail);
+          console.log('Auth callback - Org slug:', orgSlugFromUrl);
+          console.log('Auth callback - Is invitation:', isInvitation);
+          console.log('Auth callback - Is email confirmation:', isEmailConfirmation);
 
-          // Process invitation if this is an invitation flow
+          // Handle email confirmation (signup) flow
+          if (isEmailConfirmation) {
+            console.log('Processing email confirmation');
+            
+            // Check if user has any organization memberships
+            const { data: userOrgs } = await supabase
+              .from('organization_users')
+              .select('organization_id, organizations(slug)')
+              .eq('user_id', data.session.user.id);
+
+            if (userOrgs && userOrgs.length > 0) {
+              const orgSlug = userOrgs[0].organizations?.slug;
+              console.log('User has existing org membership, redirecting to:', orgSlug);
+              navigate(`/admin/${orgSlug}`);
+            } else {
+              console.log('No org membership found, redirecting to create organization');
+              navigate('/create-organization');
+            }
+            return;
+          }
+
+          // Handle invitation flow
           if (isInvitation && userEmail && orgSlugFromUrl) {
             console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
             
@@ -53,9 +77,8 @@ const AuthCallback: React.FC = () => {
             const userMetadata = data.session.user.user_metadata;
             const role = userMetadata?.role || 'member';
             const enhancedRole = userMetadata?.enhanced_role || role;
-            const inviterEmail = userMetadata?.inviter_email;
 
-            console.log('Invitation details from metadata:', { role, enhancedRole, inviterEmail });
+            console.log('Invitation details from metadata:', { role, enhancedRole });
 
             // Check if user is already in organization
             const { data: existingMembership } = await supabase
@@ -75,6 +98,7 @@ const AuthCallback: React.FC = () => {
                   email: userEmail,
                   role: role,
                   enhanced_role: enhancedRole as EnhancedRole,
+                  status: 'active',
                   accepted_at: new Date().toISOString()
                 });
 
@@ -90,12 +114,12 @@ const AuthCallback: React.FC = () => {
             }
 
             // Redirect to organization dashboard
-            console.log('Redirecting to organization:', orgSlugFromUrl);
+            console.log('Redirecting to organization dashboard:', orgSlugFromUrl);
             navigate(`/admin/${orgSlugFromUrl}`);
             return;
           }
 
-          // Handle non-invitation flows
+          // Handle regular login flow
           let targetOrgSlug = orgSlugFromUrl;
           
           if (!targetOrgSlug) {
@@ -115,8 +139,15 @@ const AuthCallback: React.FC = () => {
             console.log('Redirecting to organization dashboard:', targetOrgSlug);
             navigate(`/admin/${targetOrgSlug}`);
           } else {
-            console.log('No organization context found, redirecting to general admin');
-            navigate('/admin');
+            console.log('No organization context found, checking admin status');
+            
+            // Check if user is system admin
+            const { data: isAdmin } = await supabase.rpc("get_current_user_admin_status");
+            if (isAdmin) {
+              navigate("/admin");
+            } else {
+              navigate('/create-organization');
+            }
           }
         } else {
           // No session, redirect to auth
@@ -138,7 +169,7 @@ const AuthCallback: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <EnhancedLoadingSpinner text="Processing invitation..." />
+          <EnhancedLoadingSpinner text="Processing authentication..." />
           <p className="mt-4 text-gray-600">Setting up your account access...</p>
         </div>
       </div>

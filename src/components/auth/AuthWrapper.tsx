@@ -15,6 +15,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string) => Promise<any>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,7 +47,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signUp = async (email: string, password: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/create-organization`;
+      const redirectUrl = `${window.location.origin}/auth-callback?type=signup`;
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -55,6 +56,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return { error };
     } catch (error) {
       console.error('Sign up error:', error);
+      return { error };
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      const redirectUrl = `${window.location.origin}/auth?reset=true`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl
+      });
+      return { error };
+    } catch (error) {
+      console.error('Password reset error:', error);
       return { error };
     }
   };
@@ -74,6 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signIn,
         signUp,
         signOut,
+        resetPassword,
       }}
     >
       {children}

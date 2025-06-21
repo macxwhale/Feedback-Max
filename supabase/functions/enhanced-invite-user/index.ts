@@ -164,20 +164,20 @@ serve(async (req: Request) => {
     }
     
     const existingUser = existingUserData?.users?.find(u => u.email === email);
-    const dashboardUrl = `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}`;
+    const dashboardUrl = `${req.headers.get('origin') || 'https://pulsify.co.ke'}/admin/${organization.slug}?welcome=true&org=${encodeURIComponent(organization.name)}`;
     
     let emailSent = false;
     let invitationMethod = '';
 
-    // Prepare email content
+    // Prepare email content with organization context
     const emailSubject = `You're invited to join ${organization.name}`;
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>You're invited to join ${organization.name}</h2>
         <p>Hello,</p>
         <p>You have been invited to join <strong>${organization.name}</strong> as a <strong>${enhancedRole || role}</strong>.</p>
-        <p>Click the link below to accept your invitation:</p>
-        <p><a href="${dashboardUrl}" style="background-color: #007ACE; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Accept Invitation</a></p>
+        <p>Click the link below to accept your invitation and complete your registration:</p>
+        <p><a href="${dashboardUrl}" style="background-color: #007ACE; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Accept Invitation & Join ${organization.name}</a></p>
         <p>If the button doesn't work, copy and paste this link into your browser:</p>
         <p>${dashboardUrl}</p>
         <p>Best regards,<br>The ${organization.name} Team</p>

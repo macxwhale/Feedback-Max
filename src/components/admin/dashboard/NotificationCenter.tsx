@@ -35,6 +35,22 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     }
   };
 
+  const handleDismiss = async (notificationId: string) => {
+    try {
+      await removeNotification(notificationId);
+    } catch (error) {
+      console.error('Failed to dismiss notification:', error);
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await markAsRead(notificationId);
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -87,7 +103,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         variant="ghost"
                         size="sm"
                         title="Mark as read"
-                        onClick={() => markAsRead(notification.id)}
+                        onClick={() => handleMarkAsRead(notification.id)}
                         className="h-7 w-7 p-0"
                       >
                         <CheckCircle className="w-4 h-4 text-gray-500 hover:text-green-600" />
@@ -97,7 +113,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       variant="ghost"
                       size="sm"
                       title="Dismiss"
-                      onClick={() => removeNotification(notification.id)}
+                      onClick={() => handleDismiss(notification.id)}
                       className="h-7 w-7 p-0"
                     >
                       <X className="w-4 h-4 text-gray-500 hover:text-red-600" />

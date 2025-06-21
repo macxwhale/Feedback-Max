@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthWrapper';
 
@@ -14,8 +14,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireAdmin = false,
   requireOrgAdmin = false 
 }) => {
+  const [showAccessDenied, setShowAccessDenied] = useState(false);
+
   try {
     const { user, isAdmin, isOrgAdmin, loading } = useAuth();
+
+    // Use effect to delay showing access denied to prevent flashing
+    useEffect(() => {
+      if (!loading && (!user || (requireAdmin && !isAdmin) || (requireOrgAdmin && !isOrgAdmin && !isAdmin))) {
+        const timer = setTimeout(() => setShowAccessDenied(true), 100);
+        return () => clearTimeout(timer);
+      }
+    }, [loading, user, isAdmin, isOrgAdmin, requireAdmin, requireOrgAdmin]);
 
     if (loading) {
       return (
@@ -33,11 +43,31 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
 
     if (requireAdmin && !isAdmin) {
-      return <Navigate to="/" replace />;
+      if (showAccessDenied) {
+        return <Navigate to="/" replace />;
+      }
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Verifying permissions...</p>
+          </div>
+        </div>
+      );
     }
 
     if (requireOrgAdmin && !isOrgAdmin && !isAdmin) {
-      return <Navigate to="/" replace />;
+      if (showAccessDenied) {
+        return <Navigate to="/" replace />;
+      }
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Verifying permissions...</p>
+          </div>
+        </div>
+      );
     }
 
     return <>{children}</>;

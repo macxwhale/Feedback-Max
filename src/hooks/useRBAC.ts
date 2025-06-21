@@ -81,32 +81,3 @@ export const useRBAC = (organizationId?: string) => {
     isAdmin: isAdmin || false
   };
 };
-
-// Higher-order component for protecting routes/components
-export const withPermission = <P extends object>(
-  Component: React.ComponentType<P>,
-  requiredPermission: string,
-  organizationId?: string
-) => {
-  return function ProtectedComponent(props: P) {
-    const { hasPermission, isLoading } = useRBAC(organizationId);
-
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center p-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-        </div>
-      );
-    }
-
-    if (!hasPermission(requiredPermission)) {
-      return (
-        <div className="p-4 text-center text-red-600">
-          <p>Access denied. Required permission: {requiredPermission}</p>
-        </div>
-      );
-    }
-
-    return <Component {...props} />;
-  };
-};

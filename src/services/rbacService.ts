@@ -129,16 +129,3 @@ export class RBACError extends Error {
     this.name = 'RBACError';
   }
 }
-
-// Utility function for React components
-export const withRBAC = <T extends object>(
-  Component: React.ComponentType<T>,
-  requiredPermission: string,
-  fallback?: React.ComponentType
-) => {
-  return (props: T) => {
-    // This would integrate with your auth context
-    // Implementation depends on your specific auth setup
-    return <Component {...props} />;
-  };
-};

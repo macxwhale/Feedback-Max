@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import type { EnhancedRole } from '@/utils/userManagementUtils';
 
 interface InvitationProcessorProps {
   userEmail: string;
@@ -78,7 +79,7 @@ export const InvitationProcessor: React.FC<InvitationProcessorProps> = ({
               organization_id: invitationToProcess.organization_id,
               email: userEmail,
               role: invitationToProcess.role,
-              enhanced_role: invitationToProcess.enhanced_role || invitationToProcess.role,
+              enhanced_role: (invitationToProcess.enhanced_role || invitationToProcess.role) as EnhancedRole,
               invited_by_user_id: invitationToProcess.invited_by_user_id,
               accepted_at: new Date().toISOString()
             });

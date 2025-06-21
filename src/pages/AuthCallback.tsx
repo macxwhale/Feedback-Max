@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedLoadingSpinner } from '@/components/admin/dashboard/EnhancedLoadingSpinner';
+import type { EnhancedRole } from '@/utils/userManagementUtils';
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -85,7 +86,7 @@ const AuthCallback: React.FC = () => {
                     organization_id: invitationToProcess.organization_id,
                     email: userEmail,
                     role: invitationToProcess.role,
-                    enhanced_role: invitationToProcess.enhanced_role || invitationToProcess.role,
+                    enhanced_role: (invitationToProcess.enhanced_role || invitationToProcess.role) as EnhancedRole,
                     invited_by_user_id: invitationToProcess.invited_by_user_id,
                     accepted_at: new Date().toISOString()
                   });

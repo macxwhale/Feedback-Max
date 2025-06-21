@@ -22,7 +22,7 @@ serve(async (req: Request) => {
         success: false, 
         error: 'Missing required fields: email, organizationId, and role are required' 
       }), {
-        headers: { ...corsHeaders, 'Content-Type':'' } json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400
       });
     }

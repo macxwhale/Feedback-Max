@@ -54,6 +54,9 @@ function App() {
                 {/* Organization user authentication */}
                 <Route path="/auth" element={<LoginPage />} />
                 
+                {/* Auth callback - FIXED route */}
+                <Route path="/auth-callback" element={<AuthCallback />} />
+                
                 {/* Organization creation */}
                 <Route 
                   path="/create-organization" 
@@ -82,9 +85,6 @@ function App() {
                 
                 {/* Catch-all route - MUST be last */}
                 <Route path="*" element={<NotFound />} />
-                
-                {/* Auth callback */}
-                <Route path="/auth/callback" element={<AuthCallback />} />
               </Routes>
             </OrganizationProvider>
           </AuthProvider>

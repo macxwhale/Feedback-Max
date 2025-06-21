@@ -16,17 +16,6 @@ interface Member {
   invited_by?: { email: string } | null;
 }
 
-interface Invitation {
-  id: string;
-  email: string;
-  role: string;
-  enhanced_role?: string;
-  status: string;
-  created_at: string;
-  expires_at: string;
-  invited_by?: { email: string } | null;
-}
-
 export const useUserManagement = (organizationId: string) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,39 +45,6 @@ export const useUserManagement = (organizationId: string) => {
         ...item,
         invited_by: null
       })) as Member[];
-    },
-    enabled: !!organizationId,
-  });
-
-  const { data: invitations, isLoading: invitationsLoading } = useQuery({
-    queryKey: ['organization-invitations', organizationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('user_invitations')
-        .select(`
-          id,
-          email,
-          role,
-          enhanced_role,
-          status,
-          created_at,
-          expires_at,
-          invited_by_user_id
-        `)
-        .eq('organization_id', organizationId)
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString()) // Only show non-expired invitations
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.log('Error fetching invitations:', error);
-        return [];
-      }
-      
-      return (data || []).map(item => ({
-        ...item,
-        invited_by: null
-      })) as Invitation[];
     },
     enabled: !!organizationId,
   });
@@ -149,34 +105,6 @@ export const useUserManagement = (organizationId: string) => {
     }
   });
 
-  const cancelInvitationMutation = useMutation({
-    mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
-        .from('user_invitations')
-        .update({ 
-          status: 'cancelled', 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', invitationId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organization-invitations', organizationId] });
-      toast({
-        title: "Invitation cancelled",
-        description: "The invitation has been cancelled.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to cancel invitation",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
-
   const handleUpdateRole = (userId: string, newRole: EnhancedRole) => {
     updateRoleMutation.mutate({ userId, newRole });
   };
@@ -185,20 +113,15 @@ export const useUserManagement = (organizationId: string) => {
     removeMemberMutation.mutate(userId);
   };
 
-  const handleCancelInvitation = (invitationId: string) => {
-    cancelInvitationMutation.mutate(invitationId);
-  };
-
   const activeMembers = members?.filter(m => m.status === 'active') || [];
-  const pendingInvitations = invitations || [];
 
   return {
     membersLoading,
-    invitationsLoading,
+    invitationsLoading: false, // Simplified - no separate invitations tracking
     handleUpdateRole,
     handleRemoveMember,
-    handleCancelInvitation,
+    handleCancelInvitation: () => {}, // Simplified - no invitation cancellation needed
     activeMembers,
-    pendingInvitations,
+    pendingInvitations: [], // Simplified - no separate pending invitations
   };
 };

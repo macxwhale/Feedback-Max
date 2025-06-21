@@ -27,114 +27,76 @@ const AuthCallback: React.FC = () => {
           
           const userEmail = data.session.user.email;
           const orgSlugFromUrl = searchParams.get('org');
+          const isInvitation = searchParams.get('invitation') === 'true';
           
           console.log('Organization slug from URL:', orgSlugFromUrl);
-          console.log('User metadata:', data.session.user.user_metadata);
+          console.log('Is invitation flow:', isInvitation);
 
-          // Process invitation acceptance - check for pending invitations for this user
-          if (userEmail) {
-            console.log('Looking for pending invitations for:', userEmail);
+          // Process invitation if this is an invitation flow
+          if (isInvitation && userEmail && orgSlugFromUrl) {
+            console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
             
-            // Look for pending invitations for this user
-            const { data: pendingInvitations, error: invitationError } = await supabase
-              .from('user_invitations')
-              .select(`
-                id,
-                organization_id,
-                role,
-                enhanced_role,
-                invited_by_user_id,
-                organizations!inner(slug, name)
-              `)
-              .eq('email', userEmail)
-              .eq('status', 'pending')
-              .order('created_at', { ascending: false });
+            // Get organization details
+            const { data: organization } = await supabase
+              .from('organizations')
+              .select('id, name, slug')
+              .eq('slug', orgSlugFromUrl)
+              .single();
 
-            if (invitationError) {
-              console.error('Error fetching invitations:', invitationError);
-            } else if (pendingInvitations && pendingInvitations.length > 0) {
-              console.log('Found pending invitations:', pendingInvitations.length);
-              
-              // Process the most recent invitation or one matching the org slug
-              let invitationToProcess = pendingInvitations[0];
-              
-              if (orgSlugFromUrl) {
-                const matchingInvitation = pendingInvitations.find(
-                  inv => inv.organizations.slug === orgSlugFromUrl
-                );
-                if (matchingInvitation) {
-                  invitationToProcess = matchingInvitation;
-                }
-              }
-
-              console.log('Processing invitation:', invitationToProcess);
-
-              // Check if user is already in this organization
-              const { data: existingOrgUser } = await supabase
-                .from('organization_users')
-                .select('id')
-                .eq('user_id', data.session.user.id)
-                .eq('organization_id', invitationToProcess.organization_id)
-                .maybeSingle();
-
-              if (!existingOrgUser) {
-                // Add user to organization
-                const { error: orgError } = await supabase
-                  .from('organization_users')
-                  .insert({
-                    user_id: data.session.user.id,
-                    organization_id: invitationToProcess.organization_id,
-                    email: userEmail,
-                    role: invitationToProcess.role,
-                    enhanced_role: (invitationToProcess.enhanced_role || invitationToProcess.role) as EnhancedRole,
-                    invited_by_user_id: invitationToProcess.invited_by_user_id,
-                    accepted_at: new Date().toISOString()
-                  });
-
-                if (orgError) {
-                  console.error('Error adding user to organization:', orgError);
-                } else {
-                  console.log('User added to organization successfully');
-                  
-                  // Update invitation status to accepted
-                  await supabase
-                    .from('user_invitations')
-                    .update({ 
-                      status: 'accepted',
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', invitationToProcess.id);
-                  
-                  console.log('Invitation marked as accepted');
-                }
-              } else {
-                console.log('User already in organization, marking invitation as accepted');
-                
-                // Still mark invitation as accepted even if user was already in org
-                await supabase
-                  .from('user_invitations')
-                  .update({ 
-                    status: 'accepted',
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', invitationToProcess.id);
-              }
-              
-              // Redirect to organization dashboard
-              const orgSlug = invitationToProcess.organizations.slug;
-              console.log('Redirecting to organization:', orgSlug);
-              navigate(`/admin/${orgSlug}`);
+            if (!organization) {
+              console.error('Organization not found:', orgSlugFromUrl);
+              navigate('/auth?error=' + encodeURIComponent('Organization not found'));
               return;
             }
+
+            // Get invitation details from user metadata
+            const userMetadata = data.session.user.user_metadata;
+            const role = userMetadata?.role || 'member';
+            const enhancedRole = userMetadata?.enhanced_role || role;
+            const inviterEmail = userMetadata?.inviter_email;
+
+            console.log('Invitation details from metadata:', { role, enhancedRole, inviterEmail });
+
+            // Check if user is already in organization
+            const { data: existingMembership } = await supabase
+              .from('organization_users')
+              .select('id')
+              .eq('user_id', data.session.user.id)
+              .eq('organization_id', organization.id)
+              .maybeSingle();
+
+            if (!existingMembership) {
+              // Add user to organization
+              const { error: addError } = await supabase
+                .from('organization_users')
+                .insert({
+                  user_id: data.session.user.id,
+                  organization_id: organization.id,
+                  email: userEmail,
+                  role: role,
+                  enhanced_role: enhancedRole as EnhancedRole,
+                  accepted_at: new Date().toISOString()
+                });
+
+              if (addError) {
+                console.error('Error adding user to organization:', addError);
+                navigate('/auth?error=' + encodeURIComponent('Failed to join organization'));
+                return;
+              }
+
+              console.log('User successfully added to organization');
+            } else {
+              console.log('User already in organization');
+            }
+
+            // Redirect to organization dashboard
+            console.log('Redirecting to organization:', orgSlugFromUrl);
+            navigate(`/admin/${orgSlugFromUrl}`);
+            return;
           }
 
-          // Fallback: Check for organization context from existing membership or metadata
+          // Handle non-invitation flows
           let targetOrgSlug = orgSlugFromUrl;
-          
-          if (!targetOrgSlug) {
-            // Try to get from user metadata (legacy flow)
-            targetOrgSlug = data.session.user.user_metadata?.organization_slug;
-          }
           
           if (!targetOrgSlug) {
             // Check for existing organization membership

@@ -14,7 +14,7 @@ serve(async (req: Request) => {
 
   try {
     const { email, organizationId, role, enhancedRole } = await req.json();
-    console.log('Processing invite for:', email, 'to organization:', organizationId);
+    console.log('Processing simplified invite for:', email, 'to organization:', organizationId);
 
     // Validate input
     if (!email || !organizationId || !role) {
@@ -106,60 +106,13 @@ serve(async (req: Request) => {
       });
     }
 
-    // Check if there's already a pending invitation
-    const { data: existingInvitation } = await supabaseAdmin
-      .from('user_invitations')
-      .select('id, status')
-      .eq('email', email)
-      .eq('organization_id', organizationId)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    if (existingInvitation) {
-      console.log('Invitation already exists for this email');
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'An invitation is already pending for this email' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400
-      });
-    }
-
-    // Create proper redirect URL for the organization dashboard
+    // Create simplified redirect URL
     const baseUrl = req.headers.get('origin') || 'https://pulsify.co.ke';
-    const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}`;
+    const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true`;
     
-    console.log('Using redirect URL:', redirectUrl);
+    console.log('Using simplified redirect URL:', redirectUrl);
 
-    // Always create invitation record first - this is the source of truth
-    const { data: invitationData, error: invitationError } = await supabaseAdmin
-      .from('user_invitations')
-      .insert({
-        email: email,
-        organization_id: organizationId,
-        role: role,
-        enhanced_role: enhancedRole || role,
-        invited_by_user_id: user.id,
-        status: 'pending'
-      })
-      .select()
-      .single();
-
-    if (invitationError) {
-      console.error('Failed to create invitation record:', invitationError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to create invitation record: ' + invitationError.message,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      });
-    }
-
-    console.log('Invitation record created:', invitationData.id);
-
-    // Send invitation email with organization context in metadata
+    // Use Supabase's built-in invitation system with organization context
     const { data: inviteResponse, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       redirectTo: redirectUrl,
       data: {
@@ -168,20 +121,13 @@ serve(async (req: Request) => {
         organization_id: organizationId,
         role: role,
         enhanced_role: enhancedRole || role,
-        invitation_id: invitationData.id,
-        inviter_email: user.email || 'Admin'
+        inviter_email: user.email || 'Admin',
+        invitation_type: 'organization_invite'
       }
     });
 
     if (inviteError) {
       console.error('Failed to send invitation email:', inviteError);
-      
-      // Clean up the invitation record since email sending failed
-      await supabaseAdmin
-        .from('user_invitations')
-        .delete()
-        .eq('id', invitationData.id);
-
       return new Response(JSON.stringify({
         success: false,
         error: 'Failed to send invitation email: ' + inviteError.message,
@@ -191,19 +137,18 @@ serve(async (req: Request) => {
       });
     }
 
-    console.log('Invitation email sent successfully');
+    console.log('Invitation email sent successfully via Supabase');
 
     return new Response(JSON.stringify({
       success: true,
       message: 'Invitation sent successfully. The user will receive an email to join the organization.',
-      invitation_id: invitationData.id,
       type: 'invitation_sent',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in enhanced-invite-user:', error);
+    console.error('Error in simplified enhanced-invite-user:', error);
     return new Response(JSON.stringify({ 
       success: false, 
       error: error.message || 'An error occurred while inviting the user' 

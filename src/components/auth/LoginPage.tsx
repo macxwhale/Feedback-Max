@@ -16,7 +16,7 @@ const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // Check if this is an invitation flow
   const isInvitation = searchParams.get('invitation') === 'true';
@@ -34,12 +34,19 @@ const LoginPage: React.FC = () => {
   // Organization info for invitation
   const [orgInfo, setOrgInfo] = useState<{ name: string; slug: string } | null>(null);
 
-  // Redirect authenticated users
+  // Redirect authenticated users (but allow invitation processing)
   useEffect(() => {
-    if (user && !isInvitation) {
+    // Don't redirect if auth is still loading
+    if (authLoading) return;
+    
+    // Don't redirect if this is an invitation flow - let the user complete the invitation
+    if (isInvitation) return;
+    
+    // Only redirect authenticated users for non-invitation flows
+    if (user) {
       navigate('/');
     }
-  }, [user, navigate, isInvitation]);
+  }, [user, navigate, isInvitation, authLoading]);
 
   // Fetch organization info for invitation
   useEffect(() => {
@@ -94,7 +101,6 @@ const LoginPage: React.FC = () => {
         }
 
         if (isInvitation && orgSlug && data.user) {
-          // For invitations, redirect to processing the invitation
           toast({
             title: "Account created!",
             description: `Welcome to ${orgInfo?.name || 'the organization'}! Processing your invitation...`,
@@ -141,6 +147,15 @@ const LoginPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Show loading spinner while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <EnhancedLoadingSpinner text="Loading..." />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">

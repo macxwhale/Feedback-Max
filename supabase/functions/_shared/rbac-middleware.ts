@@ -33,7 +33,6 @@ export class EdgeRBACService {
       requireOrgMembership = false
     } = options;
 
-    // Get user from auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return { context: {} as RBACContext, error: 'Authorization header required' };
@@ -49,18 +48,16 @@ export class EdgeRBACService {
 
     const context: RBACContext = { userId: user.id };
 
-    // Check if user is system admin
     if (allowSystemAdmin) {
       const { data: isAdmin, error: adminError } = await this.supabase
         .rpc('get_current_user_admin_status');
       
       if (!adminError && isAdmin) {
         context.isAdmin = true;
-        return { context }; // System admin bypasses all other checks
+        return { context };
       }
     }
 
-    // Get organization ID from request body or query params
     const url = new URL(req.url);
     let organizationId = url.searchParams.get('organizationId');
     
@@ -80,7 +77,6 @@ export class EdgeRBACService {
     if (organizationId) {
       context.organizationId = organizationId;
 
-      // Get user's role in the organization
       const { data: orgUser, error: orgError } = await this.supabase
         .from('organization_users')
         .select('enhanced_role')
@@ -97,7 +93,6 @@ export class EdgeRBACService {
       }
     }
 
-    // Check required role
     if (requiredRole && context.userRole) {
       const hasRequiredRole = this.checkRoleHierarchy(context.userRole, requiredRole);
       if (!hasRequiredRole) {
@@ -108,7 +103,6 @@ export class EdgeRBACService {
       }
     }
 
-    // Check required permission
     if (requiredPermission && context.userRole) {
       const hasPermission = this.checkPermission(context.userRole, requiredPermission);
       if (!hasPermission) {
@@ -171,11 +165,9 @@ export class EdgeRBACService {
   }
 }
 
-// Decorator function for edge functions
 export function withRBAC(options: RBACOptions) {
   return function(handler: (req: Request, context: RBACContext) => Promise<Response>) {
     return async (req: Request): Promise<Response> => {
-      // Handle CORS preflight
       if (req.method === 'OPTIONS') {
         return new Response(null, {
           headers: {

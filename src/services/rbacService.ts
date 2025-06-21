@@ -17,7 +17,7 @@ export interface PermissionResult {
 
 export class RBACService {
   private static roleCache = new Map<string, { role: EnhancedRole; timestamp: number }>();
-  private static readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private static readonly CACHE_TTL = 5 * 60 * 1000;
 
   static async getUserRole(userId: string, organizationId: string): Promise<EnhancedRole | null> {
     const cacheKey = `${userId}-${organizationId}`;
@@ -51,12 +51,10 @@ export class RBACService {
     permission: string,
     targetUserId?: string
   ): Promise<PermissionResult> {
-    // System admin bypass
     if (context.isAdmin) {
       return { allowed: true, reason: 'System admin access' };
     }
 
-    // Get user role if not provided
     let userRole = context.userRole;
     if (!userRole) {
       userRole = await this.getUserRole(context.userId, context.organizationId);
@@ -65,7 +63,6 @@ export class RBACService {
       }
     }
 
-    // Check basic permission
     const hasBasicPermission = hasPermission(userRole, permission);
     if (!hasBasicPermission) {
       return { 
@@ -75,7 +72,6 @@ export class RBACService {
       };
     }
 
-    // Additional checks for user management operations
     if (permission === 'manage_users' && targetUserId) {
       const targetRole = await this.getUserRole(targetUserId, context.organizationId);
       if (targetRole && !canManageRole(userRole, targetRole)) {

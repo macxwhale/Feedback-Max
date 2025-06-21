@@ -20,7 +20,7 @@ export const useRBAC = (organizationId?: string) => {
     queryKey: ['user-role-rbac', user?.id, organizationId],
     queryFn: () => context ? RBACService.getUserRole(context.userId, context.organizationId) : null,
     enabled: !!context,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   const checkPermission = useCallback(async (
@@ -57,8 +57,8 @@ export const useRBAC = (organizationId?: string) => {
     if (!context || !userRole) return false;
     if (isAdmin) return true;
     
-    // Use the existing permission check from utils
-    return require('@/utils/enhancedRoleUtils').hasPermission(userRole, permission);
+    const { hasPermission } = require('@/utils/enhancedRoleUtils');
+    return hasPermission(userRole, permission);
   }, [context, userRole, isAdmin]);
 
   const canManageUser = useCallback(async (targetUserId: string): Promise<boolean> => {
@@ -68,7 +68,8 @@ export const useRBAC = (organizationId?: string) => {
     const targetRole = await RBACService.getUserRole(targetUserId, context.organizationId);
     if (!targetRole) return false;
 
-    return require('@/utils/enhancedRoleUtils').canManageRole(userRole, targetRole);
+    const { canManageRole } = require('@/utils/enhancedRoleUtils');
+    return canManageRole(userRole, targetRole);
   }, [context, userRole, isAdmin]);
 
   return {

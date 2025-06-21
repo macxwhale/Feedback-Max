@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
@@ -35,7 +34,40 @@ export function useAuthFlow() {
       description: "You have been signed in successfully." 
     });
 
-    // Redirect will be handled by auth state change
+    // Handle post-signin redirection
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        // Check for existing organization membership
+        const { data: userOrgs } = await supabase
+          .from('organization_users')
+          .select('organization_id, organizations(slug)')
+          .eq('user_id', session.user.id)
+          .limit(1);
+
+        if (userOrgs && userOrgs.length > 0) {
+          const orgSlug = userOrgs[0].organizations?.slug;
+          console.log('Redirecting to organization dashboard:', orgSlug);
+          navigate(`/admin/${orgSlug}`);
+        } else {
+          console.log('No organization context found, checking admin status');
+          
+          // Check if user is system admin
+          const { data: isAdmin } = await supabase.rpc("get_current_user_admin_status");
+          if (isAdmin) {
+            navigate("/admin");
+          } else {
+            navigate('/create-organization');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Post-signin redirection error:', error);
+      // Fallback to home page if redirection fails
+      navigate('/');
+    }
+    
     setLoading(false);
   };
 

@@ -3,6 +3,7 @@ import { useAuth } from '@/components/auth/AuthWrapper';
 import { useQuery } from '@tanstack/react-query';
 import { RBACService, type RBACContext, type PermissionResult } from '@/services/rbacService';
 import { useCallback, useMemo } from 'react';
+import { hasPermission, canManageRole } from '@/utils/enhancedRoleUtils';
 
 export const useRBAC = (organizationId?: string) => {
   const { user, isAdmin } = useAuth();
@@ -53,11 +54,10 @@ export const useRBAC = (organizationId?: string) => {
     );
   }, [context, userRole]);
 
-  const hasPermission = useCallback((permission: string): boolean => {
+  const hasPermissionCheck = useCallback((permission: string): boolean => {
     if (!context || !userRole) return false;
     if (isAdmin) return true;
     
-    const { hasPermission } = require('@/utils/enhancedRoleUtils');
     return hasPermission(userRole, permission);
   }, [context, userRole, isAdmin]);
 
@@ -68,7 +68,6 @@ export const useRBAC = (organizationId?: string) => {
     const targetRole = await RBACService.getUserRole(targetUserId, context.organizationId);
     if (!targetRole) return false;
 
-    const { canManageRole } = require('@/utils/enhancedRoleUtils');
     return canManageRole(userRole, targetRole);
   }, [context, userRole, isAdmin]);
 
@@ -77,7 +76,7 @@ export const useRBAC = (organizationId?: string) => {
     isLoading,
     checkPermission,
     requirePermission,
-    hasPermission,
+    hasPermission: hasPermissionCheck,
     canManageUser,
     isAdmin: isAdmin || false
   };

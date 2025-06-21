@@ -41,7 +41,7 @@ serve(async (req: Request) => {
     );
 
     // Get current user and verify permissions
-    const { data: { user } } = await supabaseClient.auth.getUser();
+    const { data: { user } }= await supabaseClient.auth.getUser();
     if (!user) {
       console.log('No authenticated user found');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -87,26 +87,66 @@ serve(async (req: Request) => {
 
     console.log('Organization found:', organization.name);
 
-    // Check if user already exists in organization
-    const { data: existingOrgUser } = await supabaseAdmin
-      .from('organization_users')
-      .select('user_id')
-      .eq('email', email)
-      .eq('organization_id', organizationId)
-      .maybeSingle();
+    // Check if user already exists in Supabase Auth
+    const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
+    const userExists = existingUser.users.find(u => u.email === email);
 
-    if (existingOrgUser) {
-      console.log('User is already a member of this organization');
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'User is already a member of this organization' 
+    if (userExists) {
+      // Check if user is already in organization
+      const { data: existingOrgUser } = await supabaseAdmin
+        .from('organization_users')
+        .select('user_id')
+        .eq('user_id', userExists.id)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (existingOrgUser) {
+        console.log('User is already a member of this organization');
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: 'User is already a member of this organization' 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        });
+      }
+
+      // Add existing user directly to organization
+      const { error: addError } = await supabaseAdmin
+        .from('organization_users')
+        .insert({
+          user_id: userExists.id,
+          organization_id: organizationId,
+          email: email,
+          role: role,
+          enhanced_role: enhancedRole || role,
+          status: 'active',
+          invited_by_user_id: user.id,
+          accepted_at: new Date().toISOString()
+        });
+
+      if (addError) {
+        console.error('Error adding existing user to organization:', addError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Failed to add user to organization: ' + addError.message,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        });
+      }
+
+      console.log('Existing user added to organization successfully');
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'User added to organization successfully.',
+        type: 'direct_add',
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Create branded redirect URL that goes to auth-callback
+    // User doesn't exist - send invitation
     const baseUrl = req.headers.get('origin') || 'https://pulsify.co.ke';
     const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true`;
     

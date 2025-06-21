@@ -29,11 +29,20 @@ const AuthCallback: React.FC = () => {
           const orgSlugFromUrl = searchParams.get('org');
           const isInvitation = searchParams.get('invitation') === 'true';
           const isEmailConfirmation = searchParams.get('type') === 'signup';
+          const isPasswordReset = searchParams.get('type') === 'recovery';
           
           console.log('Auth callback - User:', userEmail);
           console.log('Auth callback - Org slug:', orgSlugFromUrl);
           console.log('Auth callback - Is invitation:', isInvitation);
           console.log('Auth callback - Is email confirmation:', isEmailConfirmation);
+          console.log('Auth callback - Is password reset:', isPasswordReset);
+
+          // Handle password reset flow
+          if (isPasswordReset) {
+            console.log('Processing password reset');
+            navigate('/auth?reset=true');
+            return;
+          }
 
           // Handle email confirmation (signup) flow
           if (isEmailConfirmation) {
@@ -60,6 +69,17 @@ const AuthCallback: React.FC = () => {
           if (isInvitation && userEmail && orgSlugFromUrl) {
             console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
             
+            // Check if this is a new user who needs to set a password
+            const userMetadata = data.session.user.user_metadata;
+            const isNewUser = userMetadata?.invitation_type === 'organization_invite';
+            
+            if (isNewUser) {
+              // Redirect to password setup with organization context
+              console.log('New user invitation - redirecting to password setup');
+              navigate(`/auth?setup-password=true&org=${orgSlugFromUrl}&email=${encodeURIComponent(userEmail)}`);
+              return;
+            }
+            
             // Get organization details
             const { data: organization } = await supabase
               .from('organizations')
@@ -74,7 +94,6 @@ const AuthCallback: React.FC = () => {
             }
 
             // Get invitation details from user metadata
-            const userMetadata = data.session.user.user_metadata;
             const role = userMetadata?.role || 'member';
             const enhancedRole = userMetadata?.enhanced_role || role;
 

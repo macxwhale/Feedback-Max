@@ -6,7 +6,6 @@ import type { CreateOrganizationData } from '@/services/organizationService.type
 import { AdminStats } from './AdminStats';
 import { FormConfig } from './FormConfig';
 import { WebhookSettings } from './WebhookSettings';
-import { DataExport } from './DataExport';
 import { CreateOrganizationModal } from './CreateOrganizationModal';
 import { OrganizationsList } from './OrganizationsList';
 import { AdminTabs } from './AdminTabs';
@@ -92,7 +91,6 @@ export const AdminDashboard: React.FC = () => {
           <div className="space-y-6">
             <FormConfig />
             <WebhookSettings />
-            <DataExport />
           </div>
         )}
 

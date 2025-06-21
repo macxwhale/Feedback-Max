@@ -2,6 +2,7 @@
 import React from 'react';
 import { WebhookSettings } from '@/components/admin/WebhookSettings';
 import { ApiManagement } from '@/components/admin/integrations/ApiManagement';
+import { SmsIntegrations } from '@/components/admin/integrations/SmsIntegrations';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 
@@ -24,7 +25,7 @@ export const IntegrationsTab: React.FC = () => {
       showRequiredRole={true}
       fallback={
         <div className="text-center p-8">
-          <p className="text-gray-500">You need admin-level access or higher to manage integrations.</p>
+          <p className="text-gray-500">You need organization admin access to manage integrations.</p>
           <p className="text-sm text-gray-400 mt-2">
             Contact your organization administrator for access.
           </p>
@@ -37,6 +38,7 @@ export const IntegrationsTab: React.FC = () => {
           Connect your organization to other services and automate your workflows.
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SmsIntegrations />
           <WebhookSettings />
           <ApiManagement />
           <CrmIntegrationPlaceholder />

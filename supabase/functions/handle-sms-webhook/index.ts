@@ -5,6 +5,7 @@ import {
   corsHeaders,
   handleNewSession,
   handleOngoingSession,
+  logSmsConversation,
 } from './helpers.ts'
 
 serve(async (req) => {
@@ -29,7 +30,7 @@ serve(async (req) => {
     // 1. Find organization by webhook secret
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id, slug, thank_you_message')
+      .select('id, slug, thank_you_message, sms_settings')
       .eq('webhook_secret', webhookSecret)
       .single()
 
@@ -37,14 +38,23 @@ serve(async (req) => {
       console.error(`Webhook error: Organization not found for secret ${webhookSecret}`, orgError)
       return new Response('END Service configuration error.', { headers: { ...corsHeaders, 'Content-Type': 'text/plain' }, status: 404 })
     }
+
+    if (!org.sms_settings?.username || !org.sms_settings?.apiKey) {
+      console.error(`SMS not configured for org ${org.id}`)
+      return new Response('END SMS service not configured.', { headers: { ...corsHeaders, 'Content-Type': 'text/plain' }, status: 400 })
+    }
+
     const organizationId = org.id
 
     // 2. Parse incoming data from Africa's Talking
     const formData = await req.formData();
     const from = formData.get('from') as string | null;
     let text = formData.get('text') as string | null;
+    const messageId = formData.get('id') as string | null;
     
     text = text === null ? '' : text.trim();
+
+    console.log(`SMS received from ${from}: "${text}" (ID: ${messageId})`)
 
     if (!from) {
       console.warn("Webhook received request without a 'from' number.")
@@ -78,16 +88,25 @@ serve(async (req) => {
     if (sessionError && sessionError.code !== 'PGRST116') { // pgrst116 is "No rows found"
         throw sessionError;
     }
+
+    let response: Response;
       
     if (!session) {
       if (text.toUpperCase() === 'STOP') {
+        await logSmsConversation(supabase, null, from, text, 'incoming', messageId);
         return new Response('END You have been unsubscribed.', { headers: { ...corsHeaders, 'Content-Type': 'text/plain' } });
       }
-      return await handleNewSession(supabase, from, organizationId, questions);
+      response = await handleNewSession(supabase, from, organizationId, questions, messageId);
     } else {
       const thankYouMessage = org.thank_you_message || 'Thank you for your feedback!';
-      return await handleOngoingSession(supabase, session, text, questions, organizationId, thankYouMessage);
+      response = await handleOngoingSession(supabase, session, text, questions, organizationId, thankYouMessage, messageId);
     }
+
+    // Log the incoming message
+    const sessionId = session?.id || null;
+    await logSmsConversation(supabase, sessionId, from, text, 'incoming', messageId);
+
+    return response;
 
   } catch (error) {
     console.error('Fatal error in handle-sms-webhook:', error.message, error.stack)

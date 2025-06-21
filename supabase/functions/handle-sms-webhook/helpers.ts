@@ -6,6 +6,31 @@ export const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper to log SMS conversations
+export const logSmsConversation = async (
+  supabase: SupabaseClient, 
+  sessionId: string | null, 
+  phoneNumber: string, 
+  content: string, 
+  direction: 'incoming' | 'outgoing',
+  messageId?: string | null
+) => {
+  try {
+    if (sessionId) {
+      await supabase.from('sms_conversations').insert({
+        sms_session_id: sessionId,
+        africastalking_message_id: messageId,
+        direction,
+        content,
+        status: direction === 'outgoing' ? 'sent' : null
+      });
+    }
+  } catch (error) {
+    console.error('Error logging SMS conversation:', error);
+    // Don't throw here to avoid breaking the main flow
+  }
+};
+
 // Helper to format a question for SMS delivery
 export const formatQuestionForSms = (question: any): string => {
   let smsText = question.question_text
@@ -64,9 +89,8 @@ export const completeSurvey = async (supabase: SupabaseClient, session: any, que
     return new Response(`END ${thankYouMessage}`, { headers: { ...corsHeaders, 'Content-Type': 'text/plain' } });
 }
 
-
 // Helper to start a new survey session
-export const handleNewSession = async (supabase: SupabaseClient, from: string, organizationId: string, questions: any[]) => {
+export const handleNewSession = async (supabase: SupabaseClient, from: string, organizationId: string, questions: any[], messageId?: string | null) => {
     console.log(`Starting new session for ${from}`);
     const { data: newSession, error: createSessionError } = await supabase
         .from('sms_sessions')
@@ -86,16 +110,22 @@ export const handleNewSession = async (supabase: SupabaseClient, from: string, o
       const smsResponse = formatQuestionForSms(firstQuestion)
 
       console.log(`New session ${newSession.id} for ${from}. Sending first question.`)
+      
+      // Log the outgoing message
+      await logSmsConversation(supabase, newSession.id, from, smsResponse, 'outgoing');
+      
       return new Response(`CON ${smsResponse}`, { headers: { ...corsHeaders, 'Content-Type': 'text/plain' } })
 }
 
 // Helper to process an ongoing session
-export const handleOngoingSession = async (supabase: SupabaseClient, session: any, text: string, questions: any[], organizationId: string, orgThankYouMessage: string) => {
+export const handleOngoingSession = async (supabase: SupabaseClient, session: any, text: string, questions: any[], organizationId: string, orgThankYouMessage: string, messageId?: string | null) => {
     console.log(`Processing ongoing session ${session.id}`);
 
     if (text.toUpperCase() === 'STOP') {
         await supabase.from('sms_sessions').update({ status: 'completed' }).eq('id', session.id);
-        return new Response('END You have stopped the survey. Thank you.', { headers: { ...corsHeaders, 'Content-Type': 'text/plain' } });
+        const stopMessage = 'You have stopped the survey. Thank you.';
+        await logSmsConversation(supabase, session.id, session.phone_number, stopMessage, 'outgoing');
+        return new Response(`END ${stopMessage}`, { headers: { ...corsHeaders, 'Content-Type': 'text/plain' } });
     }
     
     const currentQuestionIndex = session.current_question_index
@@ -133,5 +163,9 @@ export const handleOngoingSession = async (supabase: SupabaseClient, session: an
     const smsResponse = formatQuestionForSms(nextQuestion)
 
     console.log(`Session ${sessionForNextStep.id} for ${session.phone_number}. Sending question ${nextQuestionIndex + 1}.`)
+    
+    // Log the outgoing message
+    await logSmsConversation(supabase, session.id, session.phone_number, smsResponse, 'outgoing');
+    
     return new Response(`CON ${smsResponse}`, { headers: { ...corsHeaders, 'Content-Type': 'text/plain' } })
 }

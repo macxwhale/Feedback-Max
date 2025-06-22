@@ -1,23 +1,9 @@
 
 import React from 'react';
-import { WebhookSettings } from '@/components/admin/WebhookSettings';
 import { ApiManagement } from '@/components/admin/integrations/ApiManagement';
 import { SmsIntegrations } from '@/components/admin/integrations/SmsIntegrations';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/components/auth/AuthWrapper';
 import { useOrganization } from '@/hooks/useOrganization';
-
-const CrmIntegrationPlaceholder: React.FC = () => (
-    <Card>
-        <CardHeader>
-            <CardTitle>CRM Integration</CardTitle>
-            <CardDescription>Connect to your favorite CRM.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <p className="text-sm text-muted-foreground">CRM integrations are coming soon.</p>
-        </CardContent>
-    </Card>
-);
 
 export const IntegrationsTab: React.FC = () => {
   const { isAdmin, isOrgAdmin } = useAuth();
@@ -45,9 +31,7 @@ export const IntegrationsTab: React.FC = () => {
       </p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SmsIntegrations />
-        <WebhookSettings />
         <ApiManagement />
-        <CrmIntegrationPlaceholder />
       </div>
     </div>
   );

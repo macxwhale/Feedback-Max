@@ -62,7 +62,7 @@ export const SmsIntegrations: React.FC = () => {
               Organization not found or failed to load
             </p>
             <p className="text-xs text-gray-500">
-              {orgError?.message || 'Unable to load organization data'}
+              {typeof orgError === 'string' ? orgError : orgError?.message || 'Unable to load organization data'}
             </p>
           </div>
         </CardContent>

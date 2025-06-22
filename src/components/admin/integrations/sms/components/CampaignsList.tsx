@@ -19,6 +19,7 @@ interface CampaignsListProps {
   campaigns: Campaign[];
   onSend: (campaignId: string) => void;
   onResend: (campaignId: string) => void;
+  onRetry: (campaignId: string) => void;
   isLoading: boolean;
 }
 
@@ -26,6 +27,7 @@ export const CampaignsList: React.FC<CampaignsListProps> = ({
   campaigns,
   onSend,
   onResend,
+  onRetry,
   isLoading
 }) => {
   if (campaigns.length === 0) {
@@ -47,6 +49,7 @@ export const CampaignsList: React.FC<CampaignsListProps> = ({
           campaign={campaign}
           onSend={onSend}
           onResend={onResend}
+          onRetry={onRetry}
           isLoading={isLoading}
         />
       ))}

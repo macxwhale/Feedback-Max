@@ -110,7 +110,7 @@ export const useSmsCampaigns = () => {
   });
 
   const sendCampaignMutation = useMutation({
-    mutationFn: async ({ campaignId, isResend = false }: { campaignId: string; isResend?: boolean }) => {
+    mutationFn: async ({ campaignId, isResend = false, isRetry = false }: { campaignId: string; isResend?: boolean; isRetry?: boolean }) => {
       if (!organization?.id) {
         throw new Error('Organization not found');
       }
@@ -124,7 +124,7 @@ export const useSmsCampaigns = () => {
         throw new Error('Campaign not found');
       }
 
-      console.log('Sending SMS campaign:', { campaignId, isResend, recipientCount: phoneNumbers.length });
+      console.log('Sending SMS campaign:', { campaignId, isResend, isRetry, recipientCount: phoneNumbers.length });
 
       // Update campaign status to sending
       await supabase
@@ -153,6 +153,11 @@ export const useSmsCampaigns = () => {
         }
       }
 
+      // For retry, send to all numbers again
+      if (isRetry) {
+        targetPhoneNumbers = phoneNumbers.map(p => p.phone_number);
+      }
+
       // Call the send-sms edge function
       const { data, error } = await supabase.functions.invoke('send-sms', {
         body: {
@@ -172,7 +177,10 @@ export const useSmsCampaigns = () => {
       return data;
     },
     onSuccess: (data, variables) => {
-      const action = variables.isResend ? 'Resent' : 'Sent';
+      let action = 'Sent';
+      if (variables.isResend) action = 'Resent';
+      if (variables.isRetry) action = 'Retried';
+      
       toast({ 
         title: `Campaign ${action.toLowerCase()} successfully`,
         description: `${action} to ${data.summary.sent} recipients`

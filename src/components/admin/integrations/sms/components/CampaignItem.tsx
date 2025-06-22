@@ -2,7 +2,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Play, RefreshCw } from 'lucide-react';
+import { Play, RefreshCw, RotateCcw } from 'lucide-react';
 
 interface Campaign {
   id: string;
@@ -20,6 +20,7 @@ interface CampaignItemProps {
   campaign: Campaign;
   onSend: (campaignId: string) => void;
   onResend: (campaignId: string) => void;
+  onRetry: (campaignId: string) => void;
   isLoading: boolean;
 }
 
@@ -27,6 +28,7 @@ export const CampaignItem: React.FC<CampaignItemProps> = ({
   campaign,
   onSend,
   onResend,
+  onRetry,
   isLoading
 }) => {
   const getStatusBadgeVariant = (status: string) => {
@@ -60,6 +62,17 @@ export const CampaignItem: React.FC<CampaignItemProps> = ({
             >
               <Play className="w-4 h-4 mr-2" />
               Send Now
+            </Button>
+          )}
+          {campaign.status === 'failed' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onRetry(campaign.id)}
+              disabled={isLoading}
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Retry Campaign
             </Button>
           )}
           {(campaign.status === 'completed' && campaign.failed_count > 0) && (

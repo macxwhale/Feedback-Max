@@ -41,6 +41,10 @@ export const SmsCampaigns: React.FC = () => {
     sendCampaignMutation.mutate({ campaignId, isResend: true });
   };
 
+  const handleRetryCampaign = (campaignId: string) => {
+    sendCampaignMutation.mutate({ campaignId, isRetry: true });
+  };
+
   if (campaignsLoading || phoneNumbersLoading) {
     return (
       <Card>
@@ -122,6 +126,7 @@ export const SmsCampaigns: React.FC = () => {
               campaigns={campaigns}
               onSend={handleSendCampaign}
               onResend={handleResendCampaign}
+              onRetry={handleRetryCampaign}
               isLoading={sendCampaignMutation.isPending}
             />
           </>

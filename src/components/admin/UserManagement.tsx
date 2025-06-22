@@ -12,6 +12,19 @@ interface UserManagementProps {
   organizationName: string;
 }
 
+// Define the member type that matches what we expect
+interface Member {
+  id: string;
+  user_id: string;
+  email: string;
+  role?: string;
+  enhanced_role?: string;
+  status: string;
+  created_at: string;
+  accepted_at?: string;
+  invited_by?: { email: string } | null;
+}
+
 export const UserManagement: React.FC<UserManagementProps> = ({
   organizationId,
   organizationName
@@ -28,9 +41,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     removeUserMutation.mutate({ userId, organizationId });
   };
 
-  const adminsCount = activeMembers.filter(m => {
+  const adminsCount = activeMembers.filter((m: Member) => {
     const role = m.enhanced_role || m.role;
-    return ['admin', 'owner'].includes(role);
+    return ['admin', 'owner'].includes(role || '');
   }).length;
 
   return (
@@ -47,7 +60,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       />
 
       <EnhancedMembersList
-        members={activeMembers}
+        members={activeMembers as Member[]}
         loading={membersLoading}
         organizationId={organizationId}
         onUpdateRole={handleUpdateRole}

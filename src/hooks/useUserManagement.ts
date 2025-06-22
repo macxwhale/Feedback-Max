@@ -7,6 +7,19 @@ interface UseUserManagementProps {
   organizationId: string;
 }
 
+// Define the member type that matches what we expect from the RPC function
+interface MemberWithInviter {
+  id: string;
+  user_id: string;
+  email: string;
+  role?: string;
+  enhanced_role?: string;
+  status: string;
+  created_at: string;
+  accepted_at?: string;
+  invited_by?: { email: string } | null;
+}
+
 export const useUserManagement = (organizationId: string) => {
   const queryClient = useQueryClient();
 
@@ -16,21 +29,63 @@ export const useUserManagement = (organizationId: string) => {
     error: membersError,
   } = useQuery({
     queryKey: ['organization-members', organizationId],
-    queryFn: async () => {
+    queryFn: async (): Promise<MemberWithInviter[]> => {
       console.log('Fetching organization members for:', organizationId);
       
-      // Use the RPC function instead of direct table access to avoid RLS issues
-      const { data, error } = await supabase.rpc('get_organization_members', {
-        p_org_id: organizationId
-      });
+      // Get organization members with enhanced role information
+      const { data: membersData, error: membersError } = await supabase
+        .from('organization_users')
+        .select(`
+          id,
+          user_id,
+          email,
+          role,
+          enhanced_role,
+          status,
+          created_at,
+          accepted_at,
+          invited_by_user_id
+        `)
+        .eq('organization_id', organizationId);
 
-      if (error) {
-        console.error('Error fetching organization members:', error);
-        throw error;
+      if (membersError) {
+        console.error('Error fetching organization members:', membersError);
+        throw membersError;
       }
 
-      console.log('Organization members fetched:', data);
-      return data || [];
+      // Transform the data to match expected format
+      const transformedData: MemberWithInviter[] = await Promise.all(
+        (membersData || []).map(async (member) => {
+          let invitedBy = null;
+          
+          if (member.invited_by_user_id) {
+            const { data: inviterData } = await supabase
+              .from('organization_users')
+              .select('email')
+              .eq('user_id', member.invited_by_user_id)
+              .single();
+            
+            if (inviterData) {
+              invitedBy = { email: inviterData.email };
+            }
+          }
+
+          return {
+            id: member.id,
+            user_id: member.user_id,
+            email: member.email,
+            role: member.role || 'member',
+            enhanced_role: member.enhanced_role || 'member',
+            status: member.status,
+            created_at: member.created_at,
+            accepted_at: member.accepted_at,
+            invited_by: invitedBy
+          };
+        })
+      );
+
+      console.log('Organization members fetched:', transformedData);
+      return transformedData;
     },
     enabled: !!organizationId,
     retry: 3,
@@ -44,7 +99,7 @@ export const useUserManagement = (organizationId: string) => {
       const { data, error } = await supabase
         .from('organization_users')
         .update({ 
-          enhanced_role: newRole,
+          enhanced_role: newRole as 'owner' | 'admin' | 'manager' | 'analyst' | 'member' | 'viewer',
           role: newRole === 'owner' || newRole === 'admin' ? 'admin' : 'member'
         })
         .eq('user_id', userId)
@@ -77,7 +132,7 @@ export const useUserManagement = (organizationId: string) => {
     updateRoleMutation.mutate({ userId, newRole });
   };
 
-  const activeMembers = membersData?.filter((member: any) => 
+  const activeMembers = membersData?.filter((member: MemberWithInviter) => 
     member.status === 'active'
   ) || [];
 

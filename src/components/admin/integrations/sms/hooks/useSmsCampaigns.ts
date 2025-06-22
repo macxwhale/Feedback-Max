@@ -170,6 +170,14 @@ export const useSmsCampaigns = () => {
 
       if (error) {
         console.error('Error sending SMS campaign:', error);
+        // Update campaign status to failed
+        await supabase
+          .from('sms_campaigns')
+          .update({ 
+            status: 'failed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', campaignId);
         throw new Error(error.message || 'Failed to send campaign');
       }
 
@@ -194,6 +202,65 @@ export const useSmsCampaigns = () => {
         description: error.message || 'An unexpected error occurred', 
         variant: 'destructive' 
       });
+      // Invalidate to refresh the campaign status
+      queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
+    }
+  });
+
+  const campaignControlMutation = useMutation({
+    mutationFn: async ({ campaignId, action }: { campaignId: string; action: 'cancel' | 'pause' | 'resume' }) => {
+      if (!organization?.id) {
+        throw new Error('Organization not found');
+      }
+
+      const campaign = campaigns?.find(c => c.id === campaignId);
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      console.log(`${action} SMS campaign:`, { campaignId });
+
+      let updateData: any = {};
+      
+      switch (action) {
+        case 'cancel':
+          updateData = { 
+            status: 'failed', 
+            completed_at: new Date().toISOString() 
+          };
+          break;
+        case 'pause':
+          updateData = { status: 'paused' };
+          break;
+        case 'resume':
+          updateData = { status: 'sending' };
+          break;
+      }
+
+      const { error } = await supabase
+        .from('sms_campaigns')
+        .update(updateData)
+        .eq('id', campaignId);
+
+      if (error) {
+        console.error(`Error ${action} campaign:`, error);
+        throw error;
+      }
+
+      return { action, campaignId };
+    },
+    onSuccess: (data) => {
+      const actionText = data.action.charAt(0).toUpperCase() + data.action.slice(1);
+      toast({ title: `Campaign ${data.action}d successfully` });
+      queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
+    },
+    onError: (error: any) => {
+      console.error('Campaign control error:', error);
+      toast({ 
+        title: "Error controlling campaign", 
+        description: error.message || 'An unexpected error occurred', 
+        variant: 'destructive' 
+      });
     }
   });
 
@@ -206,6 +273,7 @@ export const useSmsCampaigns = () => {
     phoneNumbersError,
     createCampaignMutation,
     sendCampaignMutation,
+    campaignControlMutation,
     organization
   };
 };

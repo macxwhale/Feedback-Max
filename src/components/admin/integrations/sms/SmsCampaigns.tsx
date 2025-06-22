@@ -20,6 +20,7 @@ export const SmsCampaigns: React.FC = () => {
     phoneNumbersError,
     createCampaignMutation,
     sendCampaignMutation,
+    campaignControlMutation,
     organization
   } = useSmsCampaigns();
 
@@ -44,6 +45,18 @@ export const SmsCampaigns: React.FC = () => {
 
   const handleRetryCampaign = (campaignId: string) => {
     sendCampaignMutation.mutate({ campaignId, isRetry: true });
+  };
+
+  const handleCancelCampaign = (campaignId: string) => {
+    campaignControlMutation.mutate({ campaignId, action: 'cancel' });
+  };
+
+  const handlePauseCampaign = (campaignId: string) => {
+    campaignControlMutation.mutate({ campaignId, action: 'pause' });
+  };
+
+  const handleResumeCampaign = (campaignId: string) => {
+    campaignControlMutation.mutate({ campaignId, action: 'resume' });
   };
 
   const handleDuplicateCampaign = (campaignId: string) => {
@@ -156,11 +169,14 @@ export const SmsCampaigns: React.FC = () => {
                   onSend={handleSendCampaign}
                   onResend={handleResendCampaign}
                   onRetry={handleRetryCampaign}
+                  onCancel={handleCancelCampaign}
+                  onPause={handlePauseCampaign}
+                  onResume={handleResumeCampaign}
                   onDuplicate={handleDuplicateCampaign}
                   onSchedule={handleScheduleCampaign}
                   onDelete={handleDeleteCampaign}
                   onCreateNew={() => setShowCreateForm(true)}
-                  isLoading={sendCampaignMutation.isPending}
+                  isLoading={sendCampaignMutation.isPending || campaignControlMutation.isPending}
                 />
               </div>
             </div>

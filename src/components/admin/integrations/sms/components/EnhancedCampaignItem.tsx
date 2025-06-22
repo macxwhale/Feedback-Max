@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Play, RefreshCw, RotateCcw, Copy, Pause, Calendar, MoreVertical, Eye, Trash2 } from 'lucide-react';
+import { Play, RefreshCw, RotateCcw, Copy, Pause, Calendar, MoreVertical, Eye, Trash2, Square, AlertTriangle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { CampaignAnalytics } from './CampaignAnalytics';
 
@@ -31,6 +31,9 @@ interface EnhancedCampaignItemProps {
   onDuplicate: (campaignId: string) => void;
   onSchedule: (campaignId: string) => void;
   onDelete: (campaignId: string) => void;
+  onCancel: (campaignId: string) => void;
+  onPause: (campaignId: string) => void;
+  onResume: (campaignId: string) => void;
   isLoading: boolean;
 }
 
@@ -42,6 +45,9 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
   onDuplicate,
   onSchedule,
   onDelete,
+  onCancel,
+  onPause,
+  onResume,
   isLoading
 }) => {
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -50,6 +56,7 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
     switch (status) {
       case 'completed': return 'default';
       case 'sending': return 'secondary';
+      case 'paused': return 'outline';
       case 'failed': return 'destructive';
       case 'draft': return 'outline';
       default: return 'secondary';
@@ -60,6 +67,7 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
     switch (status) {
       case 'completed': return 'text-green-600';
       case 'sending': return 'text-blue-600';
+      case 'paused': return 'text-yellow-600';
       case 'failed': return 'text-red-600';
       case 'draft': return 'text-gray-600';
       default: return 'text-gray-600';
@@ -67,6 +75,8 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
   };
 
   const sendProgress = campaign.total_recipients > 0 ? (campaign.sent_count / campaign.total_recipients) * 100 : 0;
+  const isStuckSending = campaign.status === 'sending' && campaign.started_at && 
+    new Date().getTime() - new Date(campaign.started_at).getTime() > 10 * 60 * 1000; // 10 minutes
 
   return (
     <Card className="transition-all duration-200 hover:shadow-md">
@@ -78,14 +88,20 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
               <Badge variant={getStatusBadgeVariant(campaign.status)} className={getStatusColor(campaign.status)}>
                 {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
               </Badge>
+              {isStuckSending && (
+                <Badge variant="destructive" className="text-orange-700 bg-orange-100">
+                  <AlertTriangle className="w-3 h-3 mr-1" />
+                  Stuck
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-gray-500">
               Created {new Date(campaign.created_at).toLocaleDateString()} • {campaign.total_recipients} recipients
             </p>
-            {campaign.status === 'sending' && (
+            {(campaign.status === 'sending' || campaign.status === 'paused') && (
               <div className="mt-2">
                 <div className="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>Sending Progress</span>
+                  <span>Progress</span>
                   <span>{campaign.sent_count}/{campaign.total_recipients}</span>
                 </div>
                 <Progress value={sendProgress} className="h-2" />
@@ -104,6 +120,41 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
               >
                 <Play className="w-4 h-4 mr-2" />
                 Send Now
+              </Button>
+            )}
+            
+            {campaign.status === 'sending' && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onPause(campaign.id)}
+                  disabled={isLoading}
+                >
+                  <Pause className="w-4 h-4 mr-2" />
+                  Pause
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => onCancel(campaign.id)}
+                  disabled={isLoading}
+                >
+                  <Square className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </>
+            )}
+
+            {campaign.status === 'paused' && (
+              <Button
+                size="sm"
+                onClick={() => onResume(campaign.id)}
+                disabled={isLoading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Play className="w-4 h-4 mr-2" />
+                Resume
               </Button>
             )}
             
@@ -128,6 +179,19 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Resend Failed
+              </Button>
+            )}
+
+            {isStuckSending && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onRetry(campaign.id)}
+                disabled={isLoading}
+                className="border-orange-500 text-orange-700 hover:bg-orange-50"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Force Retry
               </Button>
             )}
 

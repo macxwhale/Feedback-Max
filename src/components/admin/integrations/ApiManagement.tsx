@@ -91,7 +91,7 @@ export const ApiManagement: React.FC = () => {
     }
 
     return (
-        <Card className="col-span-1 lg:col-span-2">
+        <Card className="w-full">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><KeyRound /> API Keys</CardTitle>
                 <CardDescription>Manage API keys for programmatic access to your organization's data.</CardDescription>

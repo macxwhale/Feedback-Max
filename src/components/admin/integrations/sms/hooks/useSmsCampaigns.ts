@@ -8,42 +8,78 @@ export const useSmsCampaigns = () => {
   const { organization } = useOrganization();
   const queryClient = useQueryClient();
 
-  const { data: campaigns, isLoading: campaignsLoading } = useQuery({
+  const { data: campaigns, isLoading: campaignsLoading, error: campaignsError } = useQuery({
     queryKey: ['sms-campaigns', organization?.id],
     queryFn: async () => {
+      if (!organization?.id) return [];
+      
+      console.log('Fetching SMS campaigns for organization:', organization.id);
+      
       const { data, error } = await supabase
         .from('sms_campaigns')
         .select('*')
-        .eq('organization_id', organization!.id)
+        .eq('organization_id', organization.id)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error('Error fetching SMS campaigns:', error);
+        throw error;
+      }
+      
+      console.log('SMS campaigns fetched:', data?.length || 0);
+      return data || [];
     },
-    enabled: !!organization?.id
+    enabled: !!organization?.id,
+    retry: 2,
+    retryDelay: 1000,
   });
 
-  const { data: phoneNumbers } = useQuery({
+  const { data: phoneNumbers, isLoading: phoneNumbersLoading, error: phoneNumbersError } = useQuery({
     queryKey: ['sms-phone-numbers', organization?.id],
     queryFn: async () => {
+      if (!organization?.id) return [];
+      
+      console.log('Fetching SMS phone numbers for organization:', organization.id);
+      
       const { data, error } = await supabase
         .from('sms_phone_numbers')
         .select('*')
-        .eq('organization_id', organization!.id)
+        .eq('organization_id', organization.id)
         .eq('status', 'active');
       
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error('Error fetching SMS phone numbers:', error);
+        throw error;
+      }
+      
+      console.log('SMS phone numbers fetched:', data?.length || 0);
+      return data || [];
     },
-    enabled: !!organization?.id
+    enabled: !!organization?.id,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   const createCampaignMutation = useMutation({
     mutationFn: async ({ name, template }: { name: string; template: string }) => {
+      if (!organization?.id) {
+        throw new Error('Organization not found');
+      }
+
+      if (!name.trim()) {
+        throw new Error('Campaign name is required');
+      }
+
+      if (!template.trim()) {
+        throw new Error('Message template is required');
+      }
+
+      console.log('Creating SMS campaign:', { name, template, orgId: organization.id });
+      
       const { data, error } = await supabase
         .from('sms_campaigns')
         .insert({
-          organization_id: organization!.id,
+          organization_id: organization.id,
           name: name.trim(),
           message_template: template.trim(),
           total_recipients: phoneNumbers?.length || 0
@@ -51,7 +87,12 @@ export const useSmsCampaigns = () => {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating SMS campaign:', error);
+        throw error;
+      }
+      
+      console.log('SMS campaign created:', data);
       return data;
     },
     onSuccess: () => {
@@ -59,9 +100,10 @@ export const useSmsCampaigns = () => {
       queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
     },
     onError: (error: any) => {
+      console.error('Create campaign error:', error);
       toast({ 
         title: "Error creating campaign", 
-        description: error.message, 
+        description: error.message || 'An unexpected error occurred', 
         variant: 'destructive' 
       });
     }
@@ -69,6 +111,10 @@ export const useSmsCampaigns = () => {
 
   const sendCampaignMutation = useMutation({
     mutationFn: async ({ campaignId, isResend = false }: { campaignId: string; isResend?: boolean }) => {
+      if (!organization?.id) {
+        throw new Error('Organization not found');
+      }
+
       if (!phoneNumbers || phoneNumbers.length === 0) {
         throw new Error('No active phone numbers found');
       }
@@ -77,6 +123,8 @@ export const useSmsCampaigns = () => {
       if (!campaign) {
         throw new Error('Campaign not found');
       }
+
+      console.log('Sending SMS campaign:', { campaignId, isResend, recipientCount: phoneNumbers.length });
 
       // Update campaign status to sending
       await supabase
@@ -110,12 +158,17 @@ export const useSmsCampaigns = () => {
         body: {
           phoneNumbers: targetPhoneNumbers,
           message: campaign.message_template,
-          organizationId: organization!.id,
+          organizationId: organization.id,
           campaignId: campaignId
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error sending SMS campaign:', error);
+        throw new Error(error.message || 'Failed to send campaign');
+      }
+
+      console.log('SMS campaign sent successfully:', data);
       return data;
     },
     onSuccess: (data, variables) => {
@@ -127,18 +180,22 @@ export const useSmsCampaigns = () => {
       queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
     },
     onError: (error: any) => {
+      console.error('Send campaign error:', error);
       toast({ 
         title: "Error sending campaign", 
-        description: error.message, 
+        description: error.message || 'An unexpected error occurred', 
         variant: 'destructive' 
       });
     }
   });
 
   return {
-    campaigns,
+    campaigns: campaigns || [],
     campaignsLoading,
-    phoneNumbers,
+    campaignsError,
+    phoneNumbers: phoneNumbers || [],
+    phoneNumbersLoading,
+    phoneNumbersError,
     createCampaignMutation,
     sendCampaignMutation,
     organization

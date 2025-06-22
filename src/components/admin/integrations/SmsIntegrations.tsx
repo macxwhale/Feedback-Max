@@ -14,7 +14,7 @@ import { SmsProvidersList } from './sms/SmsProvidersList';
 import { PhoneNumberManagement } from './sms/PhoneNumberManagement';
 import { SmsCampaigns } from './sms/SmsCampaigns';
 import { smsProviders } from './sms/smsProviders';
-import { getSmsSettingsValue } from './sms/utils';
+import { getSmsSettingsValue, validateSmsSettings } from './sms/utils';
 import { supabase } from '@/integrations/supabase/client';
 
 export const SmsIntegrations: React.FC = () => {
@@ -26,50 +26,82 @@ export const SmsIntegrations: React.FC = () => {
   // Check if user has admin access
   const hasAdminAccess = isAdmin || isOrgAdmin;
 
-  const { data: orgData, isLoading } = useQuery({
-    queryKey: ['organization-sms', organization?.id],
+  const { data: orgData, isLoading, error: orgDataError } = useQuery({
+    queryKey: ['organization-sms-settings', organization?.id],
     queryFn: async () => {
       if (!organization?.id) return null;
+      
+      console.log('Fetching SMS settings for organization:', organization.id);
+      
       const { data, error } = await supabase
         .from('organizations')
         .select('sms_enabled, sms_sender_id, sms_settings, webhook_secret')
         .eq('id', organization.id)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching organization SMS settings:', error);
+        throw error;
+      }
+      
+      console.log('Organization SMS settings fetched:', data);
       return data;
     },
     enabled: !!organization?.id && hasAdminAccess,
+    retry: 3,
+    retryDelay: 1000,
   });
 
   const updateSmsStatus = useMutation({
     mutationFn: async (enabled: boolean) => {
+      if (!organization?.id) {
+        throw new Error('Organization not found');
+      }
+
+      console.log('Updating SMS status:', { enabled, orgId: organization.id });
+      
       const { data, error } = await supabase.functions.invoke('update-sms-settings', {
         body: {
-          orgId: organization!.id,
+          orgId: organization.id,
           enabled,
           senderId: orgData?.sms_sender_id || '',
           username: getSmsSettingsValue(orgData?.sms_settings, 'username'),
           apiKey: getSmsSettingsValue(orgData?.sms_settings, 'apiKey')
         }
       });
-      if (error) throw error;
+      
+      if (error) {
+        console.error('SMS status update error:', error);
+        throw new Error(error.message || 'Failed to update SMS settings');
+      }
+      
+      console.log('SMS status updated successfully:', data);
       return data;
     },
     onSuccess: () => {
       toast({ title: "SMS status updated successfully" });
-      queryClient.invalidateQueries({ queryKey: ['organization-sms', organization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization?.id] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('SMS toggle error:', error);
       toast({ 
         title: "Error updating SMS status", 
-        description: error.message, 
+        description: error.message || 'An unexpected error occurred', 
         variant: 'destructive' 
       });
     }
   });
 
   const handleToggleSms = (enabled: boolean) => {
+    if (!hasAdminAccess) {
+      toast({ 
+        title: "Access denied", 
+        description: "You need admin access to manage SMS settings", 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     updateSmsStatus.mutate(enabled);
   };
 
@@ -110,12 +142,36 @@ export const SmsIntegrations: React.FC = () => {
     );
   }
 
-  const isSmsConfigured = orgData?.sms_enabled && 
-    getSmsSettingsValue(orgData?.sms_settings, 'username') && 
-    getSmsSettingsValue(orgData?.sms_settings, 'apiKey');
+  if (orgDataError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" />
+            SMS Integrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center p-4">
+            <p className="text-sm text-red-600 mb-2">
+              Failed to load SMS settings
+            </p>
+            <button 
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization?.id] })}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isSmsConfigured = orgData?.sms_enabled && validateSmsSettings(orgData?.sms_settings);
 
   return (
-    <Card className="col-span-1 lg:col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5" />
@@ -132,10 +188,12 @@ export const SmsIntegrations: React.FC = () => {
           isLoading={updateSmsStatus.isPending}
         />
 
-        <WebhookUrlDisplay
-          webhookSecret={orgData?.webhook_secret || ''}
-          isVisible={orgData?.sms_enabled || false}
-        />
+        {orgData?.sms_enabled && (
+          <WebhookUrlDisplay
+            webhookSecret={orgData?.webhook_secret || ''}
+            isVisible={true}
+          />
+        )}
 
         <SmsProvidersList
           providers={smsProviders}
@@ -148,7 +206,7 @@ export const SmsIntegrations: React.FC = () => {
             organization={organization!}
             currentSettings={orgData}
             onSettingsUpdate={() => {
-              queryClient.invalidateQueries({ queryKey: ['organization-sms', organization?.id] });
+              queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization?.id] });
             }}
           />
         )}

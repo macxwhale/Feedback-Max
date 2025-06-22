@@ -115,70 +115,64 @@ export const SmsIntegrations: React.FC = () => {
     getSmsSettingsValue(orgData?.sms_settings, 'apiKey');
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" />
-            SMS Integrations
-          </CardTitle>
-          <CardDescription>
-            Enable SMS feedback collection from your customers
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <SmsStatusToggle
-            enabled={orgData?.sms_enabled || false}
-            onToggle={handleToggleSms}
-            isLoading={updateSmsStatus.isPending}
+    <Card className="col-span-1 lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MessageSquare className="w-5 h-5" />
+          SMS Integrations
+        </CardTitle>
+        <CardDescription>
+          Enable SMS feedback collection from your customers
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <SmsStatusToggle
+          enabled={orgData?.sms_enabled || false}
+          onToggle={handleToggleSms}
+          isLoading={updateSmsStatus.isPending}
+        />
+
+        <WebhookUrlDisplay
+          webhookSecret={orgData?.webhook_secret || ''}
+          isVisible={orgData?.sms_enabled || false}
+        />
+
+        <SmsProvidersList
+          providers={smsProviders}
+          selectedProvider={selectedProvider}
+          onProviderSelect={setSelectedProvider}
+        />
+
+        {selectedProvider === 'africastalking' && (
+          <AfricasTalkingSettings 
+            organization={organization!}
+            currentSettings={orgData}
+            onSettingsUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: ['organization-sms', organization?.id] });
+            }}
           />
+        )}
 
-          <WebhookUrlDisplay
-            webhookSecret={orgData?.webhook_secret || ''}
-            isVisible={orgData?.sms_enabled || false}
-          />
-
-          <SmsProvidersList
-            providers={smsProviders}
-            selectedProvider={selectedProvider}
-            onProviderSelect={setSelectedProvider}
-          />
-
-          {selectedProvider === 'africastalking' && (
-            <AfricasTalkingSettings 
-              organization={organization!}
-              currentSettings={orgData}
-              onSettingsUpdate={() => {
-                queryClient.invalidateQueries({ queryKey: ['organization-sms', organization?.id] });
-              }}
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      {/* SMS Management Tabs - Only show if SMS is configured */}
-      {isSmsConfigured && (
-        <Card>
-          <CardContent className="p-0">
+        {/* SMS Management Tabs - Only show if SMS is configured */}
+        {isSmsConfigured && (
+          <div className="mt-6">
             <Tabs defaultValue="phone-numbers" className="w-full">
-              <div className="px-6 pt-6">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="phone-numbers">Phone Numbers</TabsTrigger>
-                  <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-                </TabsList>
-              </div>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="phone-numbers">Phone Numbers</TabsTrigger>
+                <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+              </TabsList>
               
-              <TabsContent value="phone-numbers" className="px-6 pb-6">
+              <TabsContent value="phone-numbers" className="mt-6">
                 <PhoneNumberManagement />
               </TabsContent>
               
-              <TabsContent value="campaigns" className="px-6 pb-6">
+              <TabsContent value="campaigns" className="mt-6">
                 <SmsCampaigns />
               </TabsContent>
             </Tabs>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };

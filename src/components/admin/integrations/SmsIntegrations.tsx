@@ -62,40 +62,46 @@ export const SmsIntegrations: React.FC = () => {
   const isSmsConfigured = orgData?.sms_enabled && validateSmsSettings(orgData?.sms_settings);
 
   return (
-    <Card>
-      <SmsIntegrationsHeader />
-      <CardContent className="space-y-6">
-        <SmsStatusToggle
-          enabled={orgData?.sms_enabled || false}
-          onToggle={handleToggleSms}
-          isLoading={updateSmsStatus.isPending}
-        />
-
-        {orgData?.sms_enabled && (
-          <WebhookUrlDisplay
-            webhookSecret={orgData?.webhook_secret || ''}
-            isVisible={true}
+    <div className="w-full">
+      <Card className="w-full">
+        <SmsIntegrationsHeader />
+        <CardContent className="space-y-6 p-6">
+          <SmsStatusToggle
+            enabled={orgData?.sms_enabled || false}
+            onToggle={handleToggleSms}
+            isLoading={updateSmsStatus.isPending}
           />
-        )}
 
-        <SmsProvidersList
-          providers={smsProviders}
-          selectedProvider={selectedProvider}
-          onProviderSelect={setSelectedProvider}
-        />
+          {orgData?.sms_enabled && (
+            <WebhookUrlDisplay
+              webhookSecret={orgData?.webhook_secret || ''}
+              isVisible={true}
+            />
+          )}
 
-        {selectedProvider === 'africastalking' && (
-          <AfricasTalkingSettings 
-            organization={organization!}
-            currentSettings={orgData}
-            onSettingsUpdate={() => {
-              // This will be handled by the hook's query invalidation
-            }}
+          <SmsProvidersList
+            providers={smsProviders}
+            selectedProvider={selectedProvider}
+            onProviderSelect={setSelectedProvider}
           />
-        )}
 
-        {isSmsConfigured && <SmsManagementTabs />}
-      </CardContent>
-    </Card>
+          {selectedProvider === 'africastalking' && (
+            <AfricasTalkingSettings 
+              organization={organization!}
+              currentSettings={orgData}
+              onSettingsUpdate={() => {
+                // This will be handled by the hook's query invalidation
+              }}
+            />
+          )}
+
+          {isSmsConfigured && (
+            <div className="w-full">
+              <SmsManagementTabs />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };

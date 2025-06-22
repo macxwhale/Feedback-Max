@@ -6,19 +6,23 @@ import { SmsCampaigns } from '../SmsCampaigns';
 
 export const SmsManagementTabs: React.FC = () => {
   return (
-    <div className="mt-6">
+    <div className="w-full mt-6">
       <Tabs defaultValue="phone-numbers" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="phone-numbers">Phone Numbers</TabsTrigger>
-          <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="phone-numbers" className="flex-1">Phone Numbers</TabsTrigger>
+          <TabsTrigger value="campaigns" className="flex-1">Campaigns</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="phone-numbers" className="mt-6">
-          <PhoneNumberManagement />
+        <TabsContent value="phone-numbers" className="w-full mt-0">
+          <div className="w-full">
+            <PhoneNumberManagement />
+          </div>
         </TabsContent>
         
-        <TabsContent value="campaigns" className="mt-6">
-          <SmsCampaigns />
+        <TabsContent value="campaigns" className="w-full mt-0">
+          <div className="w-full">
+            <SmsCampaigns />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

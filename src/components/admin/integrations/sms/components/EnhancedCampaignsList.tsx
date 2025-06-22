@@ -103,7 +103,7 @@ export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
 
   if (campaigns.length === 0) {
     return (
-      <div className="text-center p-12">
+      <div className="w-full text-center p-12">
         <Send className="w-16 h-16 mx-auto mb-6 text-gray-300" />
         <h3 className="text-xl font-semibold text-gray-700 mb-2">No SMS Campaigns Yet</h3>
         <p className="text-gray-500 mb-6 max-w-md mx-auto">
@@ -118,21 +118,21 @@ export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       {/* Header with Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h4 className="text-lg font-semibold">SMS Campaigns ({campaigns.length})</h4>
           <p className="text-sm text-gray-600">
             Showing {filteredAndSortedCampaigns.length} of {campaigns.length} campaigns
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportCampaigns}>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button variant="outline" size="sm" onClick={exportCampaigns} className="w-full sm:w-auto">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button onClick={onCreateNew} size="sm">
+          <Button onClick={onCreateNew} size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             New Campaign
           </Button>
@@ -140,22 +140,24 @@ export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
       </div>
 
       {/* Filters */}
-      <CampaignFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        sortBy={sortBy}
-        onSortByChange={setSortBy}
-        sortOrder={sortOrder}
-        onSortOrderChange={setSortOrder}
-        totalCampaigns={campaigns.length}
-        filteredCount={filteredAndSortedCampaigns.length}
-      />
+      <div className="w-full">
+        <CampaignFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          sortBy={sortBy}
+          onSortByChange={setSortBy}
+          sortOrder={sortOrder}
+          onSortOrderChange={setSortOrder}
+          totalCampaigns={campaigns.length}
+          filteredCount={filteredAndSortedCampaigns.length}
+        />
+      </div>
 
       {/* Campaigns Grid */}
       {filteredAndSortedCampaigns.length === 0 ? (
-        <div className="text-center p-8 bg-gray-50 rounded-lg">
+        <div className="w-full text-center p-8 bg-gray-50 rounded-lg">
           <p className="text-gray-500">No campaigns match your current filters.</p>
           <Button variant="ghost" onClick={() => {
             setSearchTerm('');
@@ -165,19 +167,20 @@ export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="w-full space-y-4">
           {filteredAndSortedCampaigns.map((campaign) => (
-            <EnhancedCampaignItem
-              key={campaign.id}
-              campaign={campaign}
-              onSend={onSend}
-              onResend={onResend}
-              onRetry={onRetry}
-              onDuplicate={onDuplicate}
-              onSchedule={onSchedule}
-              onDelete={onDelete}
-              isLoading={isLoading}
-            />
+            <div key={campaign.id} className="w-full">
+              <EnhancedCampaignItem
+                campaign={campaign}
+                onSend={onSend}
+                onResend={onResend}
+                onRetry={onRetry}
+                onDuplicate={onDuplicate}
+                onSchedule={onSchedule}
+                onDelete={onDelete}
+                isLoading={isLoading}
+              />
+            </div>
           ))}
         </div>
       )}

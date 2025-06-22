@@ -24,14 +24,20 @@ export const IntegrationsTab: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Integrations</h2>
-      <p className="text-muted-foreground">
-        Connect your organization to other services and automate your workflows.
-      </p>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SmsIntegrations />
-        <ApiManagement />
+    <div className="w-full space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Integrations</h2>
+        <p className="text-muted-foreground">
+          Connect your organization to other services and automate your workflows.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
+        <div className="w-full">
+          <SmsIntegrations />
+        </div>
+        <div className="w-full">
+          <ApiManagement />
+        </div>
       </div>
     </div>
   );

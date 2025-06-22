@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -48,6 +47,8 @@ export const SmsIntegrations: React.FC = () => {
 
   // Handle organization loading error
   if (orgError || !organization) {
+    const errorMessage = typeof orgError === 'string' ? orgError : (orgError as any)?.message || 'Unable to load organization data';
+    
     return (
       <Card>
         <CardHeader>
@@ -62,7 +63,7 @@ export const SmsIntegrations: React.FC = () => {
               Organization not found or failed to load
             </p>
             <p className="text-xs text-gray-500">
-              {typeof orgError === 'string' ? orgError : orgError?.message || 'Unable to load organization data'}
+              {errorMessage}
             </p>
           </div>
         </CardContent>

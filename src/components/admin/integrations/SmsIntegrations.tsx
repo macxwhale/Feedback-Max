@@ -6,7 +6,7 @@ import { useAuth } from '@/components/auth/AuthWrapper';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/use-toast';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, AlertCircle } from 'lucide-react';
 import { AfricasTalkingSettings } from './sms/AfricasTalkingSettings';
 import { SmsStatusToggle } from './sms/SmsStatusToggle';
 import { WebhookUrlDisplay } from './sms/WebhookUrlDisplay';
@@ -18,7 +18,7 @@ import { getSmsSettingsValue, validateSmsSettings } from './sms/utils';
 import { supabase } from '@/integrations/supabase/client';
 
 export const SmsIntegrations: React.FC = () => {
-  const { organization } = useOrganization();
+  const { organization, isLoading: orgLoading, error: orgError } = useOrganization();
   const { isAdmin, isOrgAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -26,11 +26,53 @@ export const SmsIntegrations: React.FC = () => {
   // Check if user has admin access
   const hasAdminAccess = isAdmin || isOrgAdmin;
 
+  // Early return if organization is still loading
+  if (orgLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" />
+            SMS Integrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Handle organization loading error
+  if (orgError || !organization) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            SMS Integrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center p-4">
+            <p className="text-sm text-red-600 mb-2">
+              Organization not found or failed to load
+            </p>
+            <p className="text-xs text-gray-500">
+              {orgError?.message || 'Unable to load organization data'}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const { data: orgData, isLoading, error: orgDataError } = useQuery({
-    queryKey: ['organization-sms-settings', organization?.id],
+    queryKey: ['organization-sms-settings', organization.id],
     queryFn: async () => {
-      if (!organization?.id) return null;
-      
       console.log('Fetching SMS settings for organization:', organization.id);
       
       const { data, error } = await supabase
@@ -80,7 +122,7 @@ export const SmsIntegrations: React.FC = () => {
     },
     onSuccess: () => {
       toast({ title: "SMS status updated successfully" });
-      queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization.id] });
     },
     onError: (error: any) => {
       console.error('SMS toggle error:', error);
@@ -97,6 +139,15 @@ export const SmsIntegrations: React.FC = () => {
       toast({ 
         title: "Access denied", 
         description: "You need admin access to manage SMS settings", 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    if (!organization?.id) {
+      toast({ 
+        title: "Error", 
+        description: "Organization not found", 
         variant: 'destructive' 
       });
       return;
@@ -157,7 +208,7 @@ export const SmsIntegrations: React.FC = () => {
               Failed to load SMS settings
             </p>
             <button 
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization?.id] })}
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization.id] })}
               className="text-sm text-blue-600 hover:underline"
             >
               Try again
@@ -203,10 +254,10 @@ export const SmsIntegrations: React.FC = () => {
 
         {selectedProvider === 'africastalking' && (
           <AfricasTalkingSettings 
-            organization={organization!}
+            organization={organization}
             currentSettings={orgData}
             onSettingsUpdate={() => {
-              queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization?.id] });
+              queryClient.invalidateQueries({ queryKey: ['organization-sms-settings', organization.id] });
             }}
           />
         )}

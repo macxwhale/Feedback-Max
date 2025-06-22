@@ -18,12 +18,12 @@ interface Member {
   id: string;
   user_id: string;
   email: string;
-  role: string;
+  role?: string;
   enhanced_role?: string;
   status: string;
   created_at: string;
-  accepted_at: string;
-  invited_by?: { email: string };
+  accepted_at?: string;
+  invited_by?: { email: string } | null;
 }
 
 interface EnhancedMembersListProps {
@@ -51,7 +51,7 @@ export const EnhancedMembersList: React.FC<EnhancedMembersListProps> = ({
     if (!canManageUsers()) return false;
     if (!userRole) return false;
     
-    const memberRole = member.enhanced_role || member.role;
+    const memberRole = member.enhanced_role || member.role || 'member';
     return canManageRole(userRole, memberRole);
   };
 
@@ -65,7 +65,7 @@ export const EnhancedMembersList: React.FC<EnhancedMembersListProps> = ({
     );
   }
 
-  if (members.length === 0) {
+  if (!members || members.length === 0) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -95,7 +95,7 @@ export const EnhancedMembersList: React.FC<EnhancedMembersListProps> = ({
           </TableHeader>
           <TableBody>
             {members.map((member) => {
-              const memberRole = member.enhanced_role || member.role;
+              const memberRole = member.enhanced_role || member.role || 'member';
               const canEdit = canEditMember(member);
               
               return (

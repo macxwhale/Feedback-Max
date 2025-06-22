@@ -5,10 +5,20 @@ import { SmsResult } from './types.ts';
 export async function recordSmsResult(
   supabase: SupabaseClient,
   result: SmsResult,
-  campaignId: string,
+  campaignId: string | undefined,
   organizationId: string,
   messageContent: string
 ): Promise<void> {
+  const isSuccess = result.status === 'sent';
+  
+  console.log(`[BULK-SMS] Result for ${result.phoneNumber}:`, {
+    status: result.status,
+    messageId: result.messageId,
+    cost: result.cost,
+    statusCode: result.statusCode
+  });
+
+  // Record individual SMS send in database
   const { error: insertError } = await supabase
     .from('sms_sends')
     .insert({
@@ -19,11 +29,11 @@ export async function recordSmsResult(
       status: result.status,
       africastalking_message_id: result.messageId,
       error_message: result.error,
-      sent_at: result.status === 'sent' ? new Date().toISOString() : null
+      sent_at: isSuccess ? new Date().toISOString() : null
     });
 
   if (insertError) {
-    console.error(`Error recording SMS send for ${result.phoneNumber}:`, insertError);
+    console.error(`[BULK-SMS] Error recording SMS send for ${result.phoneNumber}:`, insertError);
   }
 }
 
@@ -33,7 +43,7 @@ export async function updateCampaignStats(
   sentCount: number,
   failedCount: number
 ): Promise<void> {
-  await supabase
+  const { error: campaignError } = await supabase
     .from('sms_campaigns')
     .update({
       sent_count: sentCount,
@@ -42,4 +52,8 @@ export async function updateCampaignStats(
       completed_at: new Date().toISOString()
     })
     .eq('id', campaignId);
+
+  if (campaignError) {
+    console.error(`[BULK-SMS] Error updating campaign stats:`, campaignError);
+  }
 }

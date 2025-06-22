@@ -109,7 +109,7 @@ function generateScoreFromResponse(response: string, questionType: string): numb
 }
 
 async function completeSurvey(supabase: SupabaseClient, session: SmsSession, organization: Organization) {
-  console.log(`Completing survey for session ${session.id}`);
+  console.log(`[SMS-WEBHOOK] Completing survey for session ${session.id}`);
   
   // Update SMS session status
   await supabase
@@ -126,5 +126,5 @@ async function completeSurvey(supabase: SupabaseClient, session: SmsSession, org
      })
     .eq('id', session.feedback_session_id);
 
-  console.log('Survey completed successfully');
+  console.log('[SMS-WEBHOOK] Survey completed successfully');
 }

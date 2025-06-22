@@ -40,6 +40,9 @@ verify_jwt = false
 [functions.send-sms]
 verify_jwt = true
 
+[functions.send-followup-sms]
+verify_jwt = true
+
 [realtime]
 enabled = true
 port = 54323

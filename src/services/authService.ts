@@ -1,6 +1,6 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { AuthError } from '@supabase/supabase-js';
+import { createAuthRedirectUrl } from '@/utils/authUtils';
 
 export class AuthService {
   private static getBaseUrl(): string {
@@ -8,18 +8,9 @@ export class AuthService {
     return window.location.origin;
   }
 
-  private static getRedirectUrl(path: string = '/auth-callback'): string {
-    const baseUrl = this.getBaseUrl();
-    const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpZ3VycndqaWF1Y29keHV1emVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3NDI1NTYsImV4cCI6MjA2NTMxODU1Nn0.nr5QAlB0UyA3VQWXolIsc8lXXzwj0Ur6Nj-ddr7f7AQ';
-    
-    // Include the API key as a URL parameter for auth callbacks
-    const separator = path.includes('?') ? '&' : '?';
-    return `${baseUrl}${path}${separator}apikey=${anonKey}`;
-  }
-
   static async signUp(email: string, password: string) {
     try {
-      const redirectUrl = this.getRedirectUrl('/auth-callback?type=signup');
+      const redirectUrl = createAuthRedirectUrl('/auth-callback?type=signup');
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -52,7 +43,7 @@ export class AuthService {
 
   static async resetPassword(email: string) {
     try {
-      const redirectUrl = this.getRedirectUrl('/auth-callback?type=recovery');
+      const redirectUrl = createAuthRedirectUrl('/auth-callback?type=recovery');
       
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl

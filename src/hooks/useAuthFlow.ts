@@ -23,8 +23,7 @@ export function useAuthFlow() {
     setLoading(true);
     setError("");
     
-    // Clean up any existing auth state
-    AuthService.cleanupAuthState();
+    console.log('Starting sign in process for:', email);
     
     const { error: signInError } = await signIn(email, password);
     
@@ -39,22 +38,30 @@ export function useAuthFlow() {
       description: "You have been signed in successfully." 
     });
 
-    // Handle post-signin redirection
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const redirectPath = await AuthService.handlePostAuthRedirect(session.user);
-        console.log('Redirecting to:', redirectPath);
-        navigate(redirectPath);
-      }
-    } catch (error) {
-      console.error('Post-signin redirection error:', error);
-      // Fallback to home page if redirection fails
-      navigate('/');
-    }
+    // Wait for auth state to settle before redirecting
+    console.log('Sign in successful, waiting for session...');
     
-    setLoading(false);
+    // Use a timeout to wait for the auth state to update
+    setTimeout(async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          console.log('Session found, determining redirect path...');
+          const redirectPath = await AuthService.handlePostAuthRedirect(session.user);
+          console.log('Redirecting to:', redirectPath);
+          navigate(redirectPath);
+        } else {
+          console.log('No session found after sign in, redirecting to auth');
+          navigate('/auth');
+        }
+      } catch (error) {
+        console.error('Post-signin redirection error:', error);
+        navigate('/');
+      } finally {
+        setLoading(false);
+      }
+    }, 1000); // Wait 1 second for auth state to settle
   };
 
   const handleSignUp = async (e: React.FormEvent) => {

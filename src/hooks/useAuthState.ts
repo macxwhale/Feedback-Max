@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -5,6 +6,9 @@ import { supabase } from '@/integrations/supabase/client';
 const checkUserRoles = async (userId: string) => {
   try {
     console.log('Checking user roles for:', userId);
+    
+    // Add a small delay to ensure database consistency
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     const { data: adminStatus, error: adminError } = await supabase
       .rpc('get_current_user_admin_status');
@@ -25,6 +29,8 @@ const checkUserRoles = async (userId: string) => {
 
     const isAdmin = !!adminStatus;
     const hasOrgRole = !!orgData?.organization_id;
+
+    console.log('User roles determined:', { isAdmin, hasOrgRole, orgData });
 
     return {
       isAdmin,
@@ -54,32 +60,49 @@ export const useAuthState = () => {
 
   useEffect(() => {
     let mounted = true;
+    let roleCheckTimeout: NodeJS.Timeout;
 
-    // `onAuthStateChange` fires immediately with the current session if it exists,
-    // so we can rely on it as the single source of truth and avoid race conditions.
+    const updateUserRoles = async (userId: string) => {
+      try {
+        const roles = await checkUserRoles(userId);
+        if (mounted) {
+          setIsAdmin(roles.isAdmin);
+          setIsOrgAdmin(roles.isOrgAdmin);
+          setCurrentOrganization(roles.currentOrganization);
+          setCurrentOrganizationSlug(roles.currentOrganizationSlug);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error updating user roles:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         if (!mounted) return;
         
-        console.log('Auth state change in useAuthState:', event);
+        console.log('Auth state change in useAuthState:', event, session?.user?.email);
+        
         setSession(session);
         setUser(session?.user ?? null);
         
+        // Clear any pending role checks
+        if (roleCheckTimeout) {
+          clearTimeout(roleCheckTimeout);
+        }
+        
         if (session?.user) {
-          // Per Supabase docs, to avoid potential client deadlocks,
-          // we perform async operations inside a timeout.
-          setTimeout(async () => {
+          // Use setTimeout to prevent potential deadlocks and ensure proper sequencing
+          roleCheckTimeout = setTimeout(() => {
             if (mounted) {
-              const roles = await checkUserRoles(session.user.id);
-              setIsAdmin(roles.isAdmin);
-              setIsOrgAdmin(roles.isOrgAdmin);
-              setCurrentOrganization(roles.currentOrganization);
-              setCurrentOrganizationSlug(roles.currentOrganizationSlug);
-              setLoading(false); // We are done loading only after roles are fetched.
+              updateUserRoles(session.user.id);
             }
-          }, 0);
+          }, 200); // Increased delay for better reliability
         } else {
-          // No user session, so we can stop loading.
           setIsAdmin(false);
           setIsOrgAdmin(false);
           setCurrentOrganization(null);
@@ -89,11 +112,37 @@ export const useAuthState = () => {
       }
     );
 
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+      if (mounted) {
+        console.log('Initial session check:', existingSession?.user?.email);
+        setSession(existingSession);
+        setUser(existingSession?.user ?? null);
+        
+        if (existingSession?.user) {
+          updateUserRoles(existingSession.user.id);
+        } else {
+          setLoading(false);
+        }
+      }
+    });
+
     return () => {
       mounted = false;
+      if (roleCheckTimeout) {
+        clearTimeout(roleCheckTimeout);
+      }
       subscription.unsubscribe();
     };
   }, []);
   
-  return { user, session, isAdmin, isOrgAdmin, currentOrganization, currentOrganizationSlug, loading };
+  return { 
+    user, 
+    session, 
+    isAdmin, 
+    isOrgAdmin, 
+    currentOrganization, 
+    currentOrganizationSlug, 
+    loading 
+  };
 };

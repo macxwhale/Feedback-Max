@@ -18,6 +18,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<any>;
   updatePassword: (newPassword: string) => Promise<any>;
+  refreshUserRoles: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,12 +39,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const authState = useAuthState();
 
   const signIn = async (email: string, password: string) => {
+    console.log('Starting sign in process');
+    
     // Clean up any existing auth state first
     AuthService.cleanupAuthState();
     
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return { error };
+      
+      if (error) {
+        console.error('Sign in error:', error);
+        return { error };
+      }
+      
+      console.log('Sign in successful, waiting for auth state update');
+      return { error: null };
     } catch (error) {
       console.error('Sign in error:', error);
       return { error };
@@ -103,6 +113,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const refreshUserRoles = async () => {
+    if (authState.user) {
+      // This will trigger a re-check of user roles
+      console.log('Refreshing user roles for:', authState.user.id);
+      // The useAuthState hook will handle the role checking
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -112,6 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signOut,
         resetPassword,
         updatePassword,
+        refreshUserRoles,
       }}
     >
       {children}

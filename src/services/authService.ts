@@ -113,16 +113,41 @@ export class AuthService {
 
   static async handlePostAuthRedirect(user: any) {
     try {
-      // Check for existing organization membership
-      const { data: userOrgs } = await supabase
-        .from('organization_users')
-        .select('organization_id, organizations(slug)')
-        .eq('user_id', user.id)
-        .limit(1);
+      console.log('Determining redirect path for user:', user.email);
+      
+      // Add a delay to ensure database consistency
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Check for existing organization membership with retries
+      let userOrgs = null;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (!userOrgs && attempts < maxAttempts) {
+        attempts++;
+        console.log(`Checking organization membership, attempt ${attempts}`);
+        
+        const { data } = await supabase
+          .from('organization_users')
+          .select('organization_id, organizations(slug)')
+          .eq('user_id', user.id)
+          .limit(1);
+        
+        if (data && data.length > 0) {
+          userOrgs = data;
+          break;
+        }
+        
+        // Wait a bit before retrying
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
 
       if (userOrgs && userOrgs.length > 0) {
         const orgSlug = userOrgs[0].organizations?.slug;
         if (orgSlug) {
+          console.log('User has organization, redirecting to:', `/admin/${orgSlug}`);
           return `/admin/${orgSlug}`;
         }
       }
@@ -130,10 +155,12 @@ export class AuthService {
       // Check if user is system admin
       const { data: isAdmin } = await supabase.rpc("get_current_user_admin_status");
       if (isAdmin) {
+        console.log('User is system admin, redirecting to:', '/admin');
         return "/admin";
       }
 
       // Default to organization creation
+      console.log('No organization found, redirecting to:', '/create-organization');
       return '/create-organization';
     } catch (error) {
       console.error('Post-auth redirect error:', error);

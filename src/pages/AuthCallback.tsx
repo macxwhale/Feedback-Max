@@ -29,12 +29,16 @@ const AuthCallback: React.FC = () => {
 
         if (data.session?.user) {
           const userEmail = data.session.user.email;
+          const authType = searchParams.get('type');
+          const isEmailConfirmation = authType === 'signup';
+          const isPasswordReset = authType === 'recovery';
+          
+          // Handle invitation flow parameters
           const orgSlugFromUrl = searchParams.get('org');
           const isInvitation = searchParams.get('invitation') === 'true';
-          const isEmailConfirmation = searchParams.get('type') === 'signup';
-          const isPasswordReset = searchParams.get('type') === 'recovery';
           
           console.log('Auth callback - User:', userEmail);
+          console.log('Auth callback - Type:', authType);
           console.log('Auth callback - Org slug:', orgSlugFromUrl);
           console.log('Auth callback - Is invitation:', isInvitation);
           console.log('Auth callback - Is email confirmation:', isEmailConfirmation);
@@ -47,36 +51,21 @@ const AuthCallback: React.FC = () => {
             return;
           }
 
-          // Handle invitation flow for new users who need to set password
+          // Handle invitation flow for existing users
           if (isInvitation && userEmail && orgSlugFromUrl) {
             console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
-            
-            // Check if this is a new user who needs to set a password
-            const userMetadata = data.session.user.user_metadata;
-            const isNewUser = userMetadata?.invitation_type === 'organization_invite';
-            
-            if (isNewUser) {
-              // Redirect to password setup with organization context
-              console.log('New user invitation - redirecting to password setup');
-              navigate(`/auth?setup-password=true&org=${orgSlugFromUrl}&email=${encodeURIComponent(userEmail)}`);
-              return;
-            }
-            
-            // Handle existing user invitation
-            await handleExistingUserInvitation(data, orgSlugFromUrl, userEmail, userMetadata);
+            await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
             return;
           }
 
-          // Handle email confirmation (signup) flow
-          if (isEmailConfirmation) {
-            console.log('Processing email confirmation');
-            const redirectPath = await AuthService.handlePostAuthRedirect(data.session.user);
-            navigate(redirectPath);
-            return;
-          }
-
-          // Handle regular login flow
+          // Handle email confirmation (signup) flow or regular login
+          console.log('Processing standard auth flow');
+          
+          // Add delay to ensure database consistency
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           const redirectPath = await AuthService.handlePostAuthRedirect(data.session.user);
+          console.log('Redirecting to:', redirectPath);
           navigate(redirectPath);
         } else {
           // No session, redirect to auth
@@ -92,8 +81,16 @@ const AuthCallback: React.FC = () => {
       }
     };
 
-    const handleExistingUserInvitation = async (data: any, orgSlugFromUrl: string, userEmail: string, userMetadata: any) => {
+    const handleInvitationFlow = async (data: any, orgSlugFromUrl: string, userEmail: string) => {
       try {
+        // Validate organization slug before querying
+        if (!isValidSlug(orgSlugFromUrl)) {
+          console.error('Invalid organization slug:', orgSlugFromUrl);
+          setError('Invalid organization invitation');
+          setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Invalid organization invitation')), 2000);
+          return;
+        }
+
         // Get organization details
         const { data: organization } = await supabase
           .from('organizations')
@@ -109,6 +106,7 @@ const AuthCallback: React.FC = () => {
         }
 
         // Get invitation details from user metadata
+        const userMetadata = data.session.user.user_metadata;
         const role = userMetadata?.role || 'member';
         const enhancedRole = userMetadata?.enhanced_role || role;
 
@@ -152,7 +150,7 @@ const AuthCallback: React.FC = () => {
         console.log('Redirecting to organization dashboard:', orgSlugFromUrl);
         navigate(`/admin/${orgSlugFromUrl}`);
       } catch (error) {
-        console.error('Error handling existing user invitation:', error);
+        console.error('Error handling invitation flow:', error);
         setError('Failed to process invitation');
         setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
       }
@@ -160,6 +158,21 @@ const AuthCallback: React.FC = () => {
 
     handleAuthCallback();
   }, [navigate, searchParams]);
+
+  const isValidSlug = (slug: string): boolean => {
+    // Check if slug looks like a valid organization slug
+    // Reject known system paths and invalid patterns
+    const invalidSlugs = ['auth-callback', 'auth', 'admin', 'api', 'callback', 'login', 'signup'];
+    const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    
+    return (
+      slug &&
+      slug.length >= 2 &&
+      slug.length <= 50 &&
+      !invalidSlugs.includes(slug) &&
+      slugPattern.test(slug)
+    );
+  };
 
   if (error) {
     return (

@@ -2,9 +2,30 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Organization } from './organizationService.types';
 
+const isValidSlug = (slug: string): boolean => {
+  // Check if slug looks like a valid organization slug
+  // Reject known system paths and invalid patterns
+  const invalidSlugs = ['auth-callback', 'auth', 'admin', 'api', 'callback', 'login', 'signup'];
+  const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  
+  return (
+    slug &&
+    slug.length >= 2 &&
+    slug.length <= 50 &&
+    !invalidSlugs.includes(slug) &&
+    slugPattern.test(slug)
+  );
+};
+
 export const getOrganizationBySlug = async (slug: string): Promise<Organization | null> => {
   try {
     console.log('getOrganizationBySlug - Fetching slug:', slug);
+    
+    // Validate slug before making database query
+    if (!isValidSlug(slug)) {
+      console.log('getOrganizationBySlug - Invalid slug format:', slug);
+      return null;
+    }
     
     const { data, error } = await supabase
       .from('organizations')

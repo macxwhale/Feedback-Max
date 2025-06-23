@@ -116,7 +116,7 @@ export class AuthService {
       console.log('Determining redirect path for user:', user.email);
       
       // Add a delay to ensure database consistency
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Check for existing organization membership with retries
       let userOrgs = null;
@@ -127,11 +127,15 @@ export class AuthService {
         attempts++;
         console.log(`Checking organization membership, attempt ${attempts}`);
         
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('organization_users')
           .select('organization_id, organizations(slug)')
           .eq('user_id', user.id)
           .limit(1);
+        
+        if (error) {
+          console.error('Error checking organization membership:', error);
+        }
         
         if (data && data.length > 0) {
           userOrgs = data;
@@ -140,7 +144,7 @@ export class AuthService {
         
         // Wait a bit before retrying
         if (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
@@ -153,13 +157,17 @@ export class AuthService {
       }
 
       // Check if user is system admin
-      const { data: isAdmin } = await supabase.rpc("get_current_user_admin_status");
+      const { data: isAdmin, error: adminError } = await supabase.rpc("get_current_user_admin_status");
+      if (adminError) {
+        console.error('Error checking admin status:', adminError);
+      }
+      
       if (isAdmin) {
         console.log('User is system admin, redirecting to:', '/admin');
         return "/admin";
       }
 
-      // Default to organization creation
+      // Default to organization creation for authenticated users without organizations
       console.log('No organization found, redirecting to:', '/create-organization');
       return '/create-organization';
     } catch (error) {

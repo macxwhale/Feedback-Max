@@ -411,7 +411,7 @@ export const LoginForm: React.FC = () => {
                     {loading ? "Creating account..." : "Sign Up"}
                   </Button>
                   <div className="text-xs text-center text-warm-gray-400 mt-3">
-                    After verifying your email, you will create your organization in the next step.
+                    After verifying your email, your organization will be created in the next step.
                   </div>
                 </form>
               </TabsContent>

@@ -20,6 +20,7 @@ export const FlaskWrapperSettings: React.FC = () => {
 
   const loadFlaskUrl = async () => {
     try {
+      console.log('Loading Flask wrapper URL...');
       const { data, error } = await supabase
         .from('system_settings')
         .select('setting_value')
@@ -36,6 +37,7 @@ export const FlaskWrapperSettings: React.FC = () => {
         return;
       }
 
+      console.log('Flask URL loaded:', data?.setting_value);
       setFlaskUrl(data?.setting_value || '');
     } catch (error) {
       console.error('Error loading Flask URL:', error);
@@ -47,18 +49,24 @@ export const FlaskWrapperSettings: React.FC = () => {
   const saveFlaskUrl = async () => {
     setLoading(true);
     try {
+      console.log('Saving Flask wrapper URL:', flaskUrl);
+      
       const { error } = await supabase
         .from('system_settings')
         .upsert({
           setting_key: 'flask_sms_wrapper_base_url',
-          setting_value: flaskUrl,
+          setting_value: flaskUrl.trim(),
           description: 'Base URL for the Flask SMS wrapper API'
+        }, {
+          onConflict: 'setting_key'
         });
 
       if (error) {
+        console.error('Error saving Flask URL:', error);
         throw error;
       }
 
+      console.log('Flask URL saved successfully');
       toast({
         title: "Success",
         description: "Flask wrapper URL saved successfully"
@@ -67,7 +75,7 @@ export const FlaskWrapperSettings: React.FC = () => {
       console.error('Error saving Flask URL:', error);
       toast({
         title: "Error",
-        description: "Failed to save Flask wrapper URL",
+        description: `Failed to save Flask wrapper URL: ${error.message}`,
         variant: "destructive"
       });
     } finally {
@@ -76,7 +84,7 @@ export const FlaskWrapperSettings: React.FC = () => {
   };
 
   const testConnection = async () => {
-    if (!flaskUrl) {
+    if (!flaskUrl.trim()) {
       toast({
         title: "Error",
         description: "Please enter a Flask wrapper URL first",
@@ -87,12 +95,17 @@ export const FlaskWrapperSettings: React.FC = () => {
 
     setTesting(true);
     try {
-      const response = await fetch(`${flaskUrl}/health`, {
+      const testUrl = flaskUrl.trim().replace(/\/$/, '') + '/health';
+      console.log('Testing Flask connection to:', testUrl);
+      
+      const response = await fetch(testUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
+
+      console.log('Flask test response:', response.status, response.statusText);
 
       if (response.ok) {
         toast({
@@ -110,7 +123,7 @@ export const FlaskWrapperSettings: React.FC = () => {
       console.error('Error testing Flask connection:', error);
       toast({
         title: "Error",
-        description: "Failed to connect to Flask wrapper API",
+        description: "Failed to connect to Flask wrapper API. Check the URL and try again.",
         variant: "destructive"
       });
     } finally {
@@ -151,7 +164,7 @@ export const FlaskWrapperSettings: React.FC = () => {
           <Input
             id="flask-url"
             type="url"
-            placeholder="https://your-flask-api.com"
+            placeholder="http://localhost:5000 or https://your-flask-api.com"
             value={flaskUrl}
             onChange={(e) => setFlaskUrl(e.target.value)}
           />
@@ -172,7 +185,7 @@ export const FlaskWrapperSettings: React.FC = () => {
           
           <Button
             onClick={testConnection}
-            disabled={testing || !flaskUrl}
+            disabled={testing || !flaskUrl.trim()}
             variant="outline"
           >
             <TestTube className="w-4 h-4 mr-2" />
@@ -186,6 +199,11 @@ export const FlaskWrapperSettings: React.FC = () => {
             <ul className="mt-1 space-y-1">
               <li>• POST {flaskUrl}/send-sms - Send SMS messages</li>
               <li>• GET {flaskUrl}/health - Health check (optional)</li>
+            </ul>
+            <p className="mt-2 font-medium">Required headers:</p>
+            <ul className="mt-1 space-y-1">
+              <li>• Content-Type: application/json</li>
+              <li>• X-Signature: HMAC-SHA256 signature for verification</li>
             </ul>
           </div>
         )}

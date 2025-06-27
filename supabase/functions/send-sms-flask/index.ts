@@ -1,6 +1,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createHmac } from 'https://deno.land/std@0.168.0/node/crypto.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +12,15 @@ interface SendSmsRequest {
   campaignId: string;
   isResend?: boolean;
   isRetry?: boolean;
+}
+
+interface FlaskSmsPayload {
+  org_id: string;
+  recipients: string[];
+  message: string;
+  sender: string;
+  username: string;
+  api_key: string;
 }
 
 serve(async (req) => {
@@ -25,6 +35,7 @@ serve(async (req) => {
     )
 
     const { campaignId, isResend = false, isRetry = false }: SendSmsRequest = await req.json()
+    console.log('Processing SMS campaign:', { campaignId, isResend, isRetry });
 
     // Get campaign details
     const { data: campaign, error: campaignError } = await supabase
@@ -34,6 +45,7 @@ serve(async (req) => {
       .single()
 
     if (campaignError || !campaign) {
+      console.error('Campaign not found:', campaignError);
       return new Response(JSON.stringify({ error: 'Campaign not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -48,6 +60,7 @@ serve(async (req) => {
       .single()
 
     if (orgError || !org) {
+      console.error('Organization not found:', orgError);
       return new Response(JSON.stringify({ error: 'Organization not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -62,17 +75,17 @@ serve(async (req) => {
     }
 
     const smsSettings = typeof org.sms_settings === 'string' ? JSON.parse(org.sms_settings) : org.sms_settings
+    console.log('SMS settings loaded for org:', org.name);
 
     // Get phone numbers for the campaign
-    let phoneNumbersQuery = supabase
+    const { data: phoneNumbers, error: phoneError } = await supabase
       .from('sms_phone_numbers')
       .select('phone_number')
       .eq('organization_id', campaign.organization_id)
       .eq('status', 'active')
 
-    const { data: phoneNumbers, error: phoneError } = await phoneNumbersQuery
-
     if (phoneError) {
+      console.error('Error fetching phone numbers:', phoneError);
       return new Response(JSON.stringify({ error: 'Failed to get phone numbers' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -87,19 +100,22 @@ serve(async (req) => {
     }
 
     // Get Flask wrapper URL
-    const { data: settingData } = await supabase
+    const { data: settingData, error: settingError } = await supabase
       .from('system_settings')
       .select('setting_value')
       .eq('setting_key', 'flask_sms_wrapper_base_url')
       .single()
 
-    const flaskWrapperUrl = settingData?.setting_value
-    if (!flaskWrapperUrl) {
+    if (settingError || !settingData?.setting_value) {
+      console.error('Flask wrapper URL not configured:', settingError);
       return new Response(JSON.stringify({ error: 'Flask SMS wrapper URL not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    const flaskWrapperUrl = settingData.setting_value.replace(/\/$/, ''); // Remove trailing slash
+    console.log('Using Flask wrapper URL:', flaskWrapperUrl);
 
     // Update campaign status
     await supabase
@@ -113,49 +129,64 @@ serve(async (req) => {
 
     const recipients = phoneNumbers.map(p => p.phone_number)
 
-    // Prepare Flask API request
-    const requestData = {
-      username: smsSettings.username,
-      api_key: smsSettings.apiKey,
+    // Prepare Flask API request payload
+    const requestData: FlaskSmsPayload = {
+      org_id: org.id,
       recipients,
       message: campaign.message_template,
       sender: org.sms_sender_id || smsSettings.senderId || '41042',
-      org_id: org.id
+      username: smsSettings.username,
+      api_key: smsSettings.apiKey
     }
 
-    console.log('Sending campaign via Flask wrapper:', { campaignId, recipients: recipients.length })
+    // Create signature for Flask API
+    const webhookSecret = org.webhook_secret || 'changeme';
+    const bodyString = JSON.stringify(requestData);
+    const signature = createHmac('sha256', webhookSecret)
+      .update(bodyString)
+      .digest('hex');
+
+    console.log('Sending campaign via Flask wrapper:', { 
+      campaignId, 
+      recipients: recipients.length,
+      flaskUrl: `${flaskWrapperUrl}/send-sms`
+    });
 
     // Send via Flask wrapper
     const response = await fetch(`${flaskWrapperUrl}/send-sms`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Signature': signature,
       },
-      body: JSON.stringify(requestData)
+      body: bodyString
     })
 
     if (!response.ok) {
+      console.error('Flask API error:', response.status, response.statusText);
       await supabase
         .from('sms_campaigns')
         .update({ status: 'failed' })
         .eq('id', campaignId)
 
-      return new Response(JSON.stringify({ error: `Flask API error: ${response.statusText}` }), {
+      return new Response(JSON.stringify({ 
+        error: `Flask API error: ${response.status} ${response.statusText}` 
+      }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
 
     const responseData = await response.json()
-    console.log('Flask response:', responseData)
+    console.log('Flask response received:', { success: responseData.success, recipients: responseData.response?.SMSMessageData?.Recipients?.length });
 
     // Process Flask response and update database
     let sentCount = 0
     let deliveredCount = 0
     let failedCount = 0
 
-    if (responseData.SMSMessageData?.Recipients) {
-      for (const recipient of responseData.SMSMessageData.Recipients) {
+    if (responseData.success && responseData.response?.SMSMessageData?.Recipients) {
+      for (const recipient of responseData.response.SMSMessageData.Recipients) {
         const status = recipient.statusCode === 101 ? 'sent' : 'failed'
         
         if (status === 'sent') {
@@ -196,19 +227,25 @@ serve(async (req) => {
             })
         }
       }
+    } else {
+      // Handle failed response from Flask
+      failedCount = recipients.length;
+      console.error('Flask API returned unsuccessful response:', responseData);
     }
 
     // Update campaign with final counts
     await supabase
       .from('sms_campaigns')
       .update({
-        status: 'completed',
+        status: sentCount > 0 ? 'completed' : 'failed',
         completed_at: new Date().toISOString(),
         sent_count: sentCount,
         delivered_count: deliveredCount,
         failed_count: failedCount
       })
       .eq('id', campaignId)
+
+    console.log('Campaign completed:', { campaignId, sentCount, deliveredCount, failedCount });
 
     return new Response(JSON.stringify({
       success: true,
@@ -222,7 +259,7 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    console.error('Send SMS error:', error)
+    console.error('Send SMS Flask error:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

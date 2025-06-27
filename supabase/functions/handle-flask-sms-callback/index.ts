@@ -1,6 +1,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createHmac } from 'https://deno.land/std@0.168.0/node/crypto.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +17,19 @@ interface FlaskSmsCallback {
   from: string; // Phone number
 }
 
+function verifySignature(body: string, signature: string, secret: string): boolean {
+  const expectedSignature = createHmac('sha256', secret)
+    .update(body)
+    .digest('hex');
+  
+  // Compare without timing attacks
+  let result = 0;
+  for (let i = 0; i < expectedSignature.length; i++) {
+    result |= expectedSignature.charCodeAt(i) ^ signature.charCodeAt(i);
+  }
+  return result === 0 && expectedSignature.length === signature.length;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -27,12 +41,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const callback: FlaskSmsCallback = await req.json()
+    const body = await req.text();
+    const callback: FlaskSmsCallback = JSON.parse(body);
     console.log('Flask SMS callback received:', callback)
 
     const { linkId, text, to: senderId, id: messageId, date, from: phoneNumber } = callback
 
-    // Get conversation progress
+    // Get conversation progress to find the organization
     const { data: progress, error: progressError } = await supabase
       .from('sms_conversation_progress')
       .select('*')
@@ -48,7 +63,7 @@ serve(async (req) => {
       })
     }
 
-    // Get organization details
+    // Get organization details and verify signature
     const { data: org, error: orgError } = await supabase
       .from('organizations')
       .select('*')
@@ -61,6 +76,19 @@ serve(async (req) => {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    }
+
+    // Verify signature if provided
+    const providedSignature = req.headers.get('X-Signature');
+    if (providedSignature) {
+      const webhookSecret = org.webhook_secret || 'changeme';
+      if (!verifySignature(body, providedSignature, webhookSecret)) {
+        console.error('Invalid signature provided');
+        return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
     }
 
     // Log the conversation
@@ -133,7 +161,14 @@ serve(async (req) => {
 
     // Send response message if needed
     if (responseMessage) {
-      const flaskWrapperUrl = Deno.env.get('FLASK_SMS_WRAPPER_URL') || ''
+      // Get Flask wrapper URL to send response
+      const { data: settingData } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'flask_sms_wrapper_base_url')
+        .single()
+
+      const flaskWrapperUrl = settingData?.setting_value?.replace(/\/$/, '');
       
       if (flaskWrapperUrl && org.sms_settings) {
         const smsSettings = typeof org.sms_settings === 'string' 
@@ -141,25 +176,35 @@ serve(async (req) => {
           : org.sms_settings
 
         const requestData = {
-          username: smsSettings.username,
-          api_key: smsSettings.apiKey,
+          org_id: org.id,
           recipients: [phoneNumber],
           message: responseMessage,
           sender: senderId,
-          org_id: org.id
+          username: smsSettings.username,
+          api_key: smsSettings.apiKey
         }
+
+        // Create signature for Flask API
+        const webhookSecret = org.webhook_secret || 'changeme';
+        const requestBody = JSON.stringify(requestData);
+        const signature = createHmac('sha256', webhookSecret)
+          .update(requestBody)
+          .digest('hex');
 
         try {
           const response = await fetch(`${flaskWrapperUrl}/send-sms`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'X-Signature': signature,
             },
-            body: JSON.stringify(requestData)
+            body: requestBody
           })
 
           if (!response.ok) {
-            console.error('Failed to send response via Flask API:', response.statusText)
+            console.error('Failed to send response via Flask API:', response.status, response.statusText)
+          } else {
+            console.log('Response sent successfully via Flask API')
           }
         } catch (error) {
           console.error('Error sending response via Flask API:', error)

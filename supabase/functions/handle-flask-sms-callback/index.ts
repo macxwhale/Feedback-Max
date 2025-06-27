@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createHmac } from 'https://deno.land/std@0.168.0/node/crypto.ts';
@@ -214,40 +215,33 @@ serve(async (req) => {
 
     const body = await req.text();
     const callback: FlaskSmsCallback = JSON.parse(body);
-    console.log('Flask SMS callback received:', callback)
+    console.log('Flask SMS callback received:', {
+      sender_id: callback.to,
+      from_number: callback.from,
+      text: callback.text,
+      timestamp: callback.date,
+      link_id: callback.linkId,
+      message_id: callback.id
+    });
 
     const { linkId, text, to: senderId, id: messageId, date, from: phoneNumber } = callback
 
-    // Get conversation progress to find the organization
-    const { data: progress, error: progressError } = await supabase
-      .from('sms_conversation_progress')
-      .select('*')
-      .eq('sender_id', senderId)
-      .eq('phone_number', phoneNumber)
-      .single()
-
-    if (progressError) {
-      console.error('Error finding conversation progress:', progressError)
-      return new Response(JSON.stringify({ error: 'Conversation not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Get organization details and verify signature
+    // Find organization by SMS sender ID
     const { data: org, error: orgError } = await supabase
       .from('organizations')
       .select('*')
-      .eq('id', progress.organization_id)
+      .eq('sms_sender_id', senderId)
       .single()
 
     if (orgError || !org) {
-      console.error('Error finding organization:', orgError)
-      return new Response(JSON.stringify({ error: 'Organization not found' }), {
+      console.error('Error finding organization by sender ID:', senderId, orgError)
+      return new Response(JSON.stringify({ error: 'Organization not found for sender ID' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    console.log('Found organization:', org.name, 'for sender ID:', senderId)
 
     // Verify signature if provided
     const providedSignature = req.headers.get('X-Signature');
@@ -260,6 +254,48 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
+    }
+
+    // Get or create conversation progress
+    let { data: progress, error: progressError } = await supabase
+      .from('sms_conversation_progress')
+      .select('*')
+      .eq('organization_id', org.id)
+      .eq('phone_number', phoneNumber)
+      .eq('sender_id', senderId)
+      .single()
+
+    if (progressError && progressError.code === 'PGRST116') {
+      // No conversation progress found, create new one
+      console.log('Creating new conversation progress for:', phoneNumber)
+      const { data: newProgress, error: createError } = await supabase
+        .from('sms_conversation_progress')
+        .insert({
+          organization_id: org.id,
+          phone_number: phoneNumber,
+          sender_id: senderId,
+          current_step: 'consent',
+          consent_given: false,
+          session_data: {}
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        console.error('Error creating conversation progress:', createError)
+        return new Response(JSON.stringify({ error: 'Failed to create conversation progress' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      progress = newProgress
+    } else if (progressError) {
+      console.error('Error finding conversation progress:', progressError)
+      return new Response(JSON.stringify({ error: 'Database error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
     // Log the conversation
@@ -283,7 +319,7 @@ serve(async (req) => {
         const consentResponse = text.toLowerCase().trim()
         if (consentResponse === '1' || consentResponse === 'yes' || consentResponse === 'y') {
           // Get first question
-          const questions = await getOrganizationQuestions(supabase, progress.organization_id)
+          const questions = await getOrganizationQuestions(supabase, org.id)
           if (questions.length > 0) {
             nextStep = 'question_0'
             sessionData.consent_given = true
@@ -295,7 +331,7 @@ serve(async (req) => {
             const { data: feedbackSession, error: sessionError } = await supabase
               .from('feedback_sessions')
               .insert({
-                organization_id: progress.organization_id,
+                organization_id: org.id,
                 phone_number: phoneNumber,
                 status: 'in_progress',
                 metadata: { 
@@ -354,7 +390,7 @@ serve(async (req) => {
                 .from('feedback_responses')
                 .insert({
                   session_id: sessionData.feedback_session_id,
-                  organization_id: progress.organization_id,
+                  organization_id: org.id,
                   question_id: currentQuestion.id,
                   question_category: currentQuestion.category || 'QualityService',
                   response_value: validation.value,

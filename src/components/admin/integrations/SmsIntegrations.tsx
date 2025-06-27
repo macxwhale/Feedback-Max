@@ -107,7 +107,8 @@ export const SmsIntegrations: React.FC = () => {
   }
 
   const isSmsConfigured = orgData?.sms_enabled && validateSmsSettings(orgData?.sms_settings);
-  const isFlaskWrapper = orgData?.sms_integration_type === 'flask_wrapper';
+  // Use optional chaining to safely access sms_integration_type
+  const isFlaskWrapper = (orgData as any)?.sms_integration_type === 'flask_wrapper';
 
   return (
     <div className="w-full">

@@ -13,7 +13,6 @@ import { toast } from 'sonner';
 import { SystemUserManagement } from './system/SystemUserManagement';
 
 export const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('organizations');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const queryClient = useQueryClient();
   
@@ -72,27 +71,12 @@ export const AdminDashboard: React.FC = () => {
           <p className="text-gray-600">Manage organizations, view statistics, and configure system settings</p>
         </div>
 
-        <AdminTabs activeTab={activeTab} onTabChange={setActiveTab} />
-
-        {activeTab === 'organizations' && (
-          <OrganizationsList
-            organizations={organizations || []}
-            onCreateClick={() => setShowCreateModal(true)}
-            onToggleActive={handleToggleActive}
-            onUpdatePlan={handleUpdatePlan}
-          />
-        )}
-        
-        {activeTab === 'users' && <SystemUserManagement organizations={organizations || []} />}
-
-        {activeTab === 'stats' && <AdminStats />}
-        
-        {activeTab === 'config' && (
-          <div className="space-y-6">
-            <FormConfig />
-            <WebhookSettings />
-          </div>
-        )}
+        <AdminTabs 
+          organizations={organizations || []}
+          onCreateClick={() => setShowCreateModal(true)}
+          onToggleActive={handleToggleActive}
+          onUpdatePlan={handleUpdatePlan}
+        />
 
         {showCreateModal && (
           <CreateOrganizationModal

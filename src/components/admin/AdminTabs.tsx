@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Building2, Settings, Code } from 'lucide-react';
@@ -5,7 +6,19 @@ import { SystemUserManagement } from './system/SystemUserManagement';
 import { OrganizationsList } from './OrganizationsList';
 import { FlaskWrapperSettings } from './system/FlaskWrapperSettings';
 
-export const AdminTabs: React.FC = () => {
+interface AdminTabsProps {
+  organizations: any[];
+  onCreateClick: () => void;
+  onToggleActive: (orgId: string, currentStatus: boolean) => void;
+  onUpdatePlan: (orgId: string, planType: string) => void;
+}
+
+export const AdminTabs: React.FC<AdminTabsProps> = ({
+  organizations,
+  onCreateClick,
+  onToggleActive,
+  onUpdatePlan
+}) => {
   return (
     <Tabs defaultValue="organizations" className="w-full">
       <TabsList className="grid w-full grid-cols-4">
@@ -28,11 +41,16 @@ export const AdminTabs: React.FC = () => {
       </TabsList>
 
       <TabsContent value="organizations" className="mt-6">
-        <OrganizationsList />
+        <OrganizationsList
+          organizations={organizations}
+          onCreateClick={onCreateClick}
+          onToggleActive={onToggleActive}
+          onUpdatePlan={onUpdatePlan}
+        />
       </TabsContent>
 
       <TabsContent value="users" className="mt-6">
-        <SystemUserManagement />
+        <SystemUserManagement organizations={organizations} />
       </TabsContent>
 
       <TabsContent value="system" className="mt-6">

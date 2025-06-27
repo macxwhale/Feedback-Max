@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createHmac } from 'https://deno.land/std@0.168.0/node/crypto.ts';
@@ -214,17 +213,45 @@ serve(async (req) => {
     )
 
     const body = await req.text();
-    const callback: FlaskSmsCallback = JSON.parse(body);
-    console.log('Flask SMS callback received:', {
-      sender_id: callback.to,
-      from_number: callback.from,
-      text: callback.text,
-      timestamp: callback.date,
-      link_id: callback.linkId,
-      message_id: callback.id
-    });
+    
+    // Parse the JSON and handle potential parsing errors
+    let callback: FlaskSmsCallback;
+    try {
+      callback = JSON.parse(body);
+    } catch (parseError) {
+      console.error('Failed to parse callback JSON:', parseError, 'Body:', body);
+      return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    console.log('Flask SMS callback received (raw):', body);
+    console.log('Flask SMS callback parsed:', callback);
+
+    // Validate required fields
+    if (!callback.to || !callback.from || !callback.text) {
+      console.error('Missing required fields in callback:', {
+        to: callback.to,
+        from: callback.from,
+        text: callback.text
+      });
+      return new Response(JSON.stringify({ error: 'Missing required fields: to, from, or text' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     const { linkId, text, to: senderId, id: messageId, date, from: phoneNumber } = callback
+
+    console.log('Processing SMS callback:', {
+      sender_id: senderId,
+      from_number: phoneNumber,
+      text: text,
+      timestamp: date,
+      link_id: linkId,
+      message_id: messageId
+    });
 
     // Find organization by SMS sender ID
     const { data: org, error: orgError } = await supabase
@@ -235,7 +262,7 @@ serve(async (req) => {
 
     if (orgError || !org) {
       console.error('Error finding organization by sender ID:', senderId, orgError)
-      return new Response(JSON.stringify({ error: 'Organization not found for sender ID' }), {
+      return new Response(JSON.stringify({ error: 'Organization not found for sender ID: ' + senderId }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -263,9 +290,17 @@ serve(async (req) => {
       .eq('organization_id', org.id)
       .eq('phone_number', phoneNumber)
       .eq('sender_id', senderId)
-      .single()
+      .maybeSingle() // Use maybeSingle to avoid errors when no rows found
 
-    if (progressError && progressError.code === 'PGRST116') {
+    if (progressError) {
+      console.error('Error fetching conversation progress:', progressError)
+      return new Response(JSON.stringify({ error: 'Database error while fetching conversation progress' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    if (!progress) {
       // No conversation progress found, create new one
       console.log('Creating new conversation progress for:', phoneNumber)
       const { data: newProgress, error: createError } = await supabase
@@ -290,12 +325,6 @@ serve(async (req) => {
       }
 
       progress = newProgress
-    } else if (progressError) {
-      console.error('Error finding conversation progress:', progressError)
-      return new Response(JSON.stringify({ error: 'Database error' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
     }
 
     // Log the conversation

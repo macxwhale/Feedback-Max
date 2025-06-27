@@ -638,6 +638,7 @@ export type Database = {
           features_config: Json | null
           feedback_header_subtitle: string | null
           feedback_header_title: string | null
+          flask_sms_wrapper_url: string | null
           flow_configuration: Json | null
           id: string
           is_active: boolean
@@ -651,6 +652,7 @@ export type Database = {
           settings: Json | null
           slug: string
           sms_enabled: boolean
+          sms_integration_type: string
           sms_sender_id: string | null
           sms_settings: Json | null
           thank_you_message: string | null
@@ -671,6 +673,7 @@ export type Database = {
           features_config?: Json | null
           feedback_header_subtitle?: string | null
           feedback_header_title?: string | null
+          flask_sms_wrapper_url?: string | null
           flow_configuration?: Json | null
           id?: string
           is_active?: boolean
@@ -684,6 +687,7 @@ export type Database = {
           settings?: Json | null
           slug: string
           sms_enabled?: boolean
+          sms_integration_type?: string
           sms_sender_id?: string | null
           sms_settings?: Json | null
           thank_you_message?: string | null
@@ -704,6 +708,7 @@ export type Database = {
           features_config?: Json | null
           feedback_header_subtitle?: string | null
           feedback_header_title?: string | null
+          flask_sms_wrapper_url?: string | null
           flow_configuration?: Json | null
           id?: string
           is_active?: boolean
@@ -717,6 +722,7 @@ export type Database = {
           settings?: Json | null
           slug?: string
           sms_enabled?: boolean
+          sms_integration_type?: string
           sms_sender_id?: string | null
           sms_settings?: Json | null
           thank_you_message?: string | null
@@ -1070,6 +1076,53 @@ export type Database = {
           },
         ]
       }
+      sms_conversation_progress: {
+        Row: {
+          consent_given: boolean | null
+          created_at: string
+          current_step: string
+          id: string
+          last_message_id: string | null
+          organization_id: string
+          phone_number: string
+          sender_id: string
+          session_data: Json | null
+          updated_at: string
+        }
+        Insert: {
+          consent_given?: boolean | null
+          created_at?: string
+          current_step?: string
+          id?: string
+          last_message_id?: string | null
+          organization_id: string
+          phone_number: string
+          sender_id: string
+          session_data?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          consent_given?: boolean | null
+          created_at?: string
+          current_step?: string
+          id?: string
+          last_message_id?: string | null
+          organization_id?: string
+          phone_number?: string
+          sender_id?: string
+          session_data?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_conversation_progress_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_conversations: {
         Row: {
           africastalking_message_id: string | null
@@ -1275,6 +1328,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      system_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          setting_key: string
+          setting_value: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key: string
+          setting_value: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       user_invitations: {
         Row: {

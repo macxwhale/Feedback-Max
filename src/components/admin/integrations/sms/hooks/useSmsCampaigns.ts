@@ -1,274 +1,175 @@
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/components/auth/AuthWrapper';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from '@/components/ui/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 export const useSmsCampaigns = () => {
+  const { user } = useAuth();
   const { organization } = useOrganization();
   const queryClient = useQueryClient();
 
-  const { data: campaigns, isLoading: campaignsLoading, error: campaignsError } = useQuery({
+  // Fetch campaigns
+  const { data: campaigns = [], isLoading: campaignsLoading, error: campaignsError } = useQuery({
     queryKey: ['sms-campaigns', organization?.id],
     queryFn: async () => {
       if (!organization?.id) return [];
-      
-      console.log('Fetching SMS campaigns for organization:', organization.id);
-      
+
       const { data, error } = await supabase
         .from('sms_campaigns')
         .select('*')
         .eq('organization_id', organization.id)
         .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching SMS campaigns:', error);
-        throw error;
-      }
-      
-      console.log('SMS campaigns fetched:', data?.length || 0);
+
+      if (error) throw error;
       return data || [];
     },
-    enabled: !!organization?.id,
-    retry: 2,
-    retryDelay: 1000,
+    enabled: !!organization?.id
   });
 
-  const { data: phoneNumbers, isLoading: phoneNumbersLoading, error: phoneNumbersError } = useQuery({
+  // Fetch phone numbers
+  const { data: phoneNumbers = [], isLoading: phoneNumbersLoading, error: phoneNumbersError } = useQuery({
     queryKey: ['sms-phone-numbers', organization?.id],
     queryFn: async () => {
       if (!organization?.id) return [];
-      
-      console.log('Fetching SMS phone numbers for organization:', organization.id);
-      
+
       const { data, error } = await supabase
         .from('sms_phone_numbers')
         .select('*')
         .eq('organization_id', organization.id)
-        .eq('status', 'active');
-      
-      if (error) {
-        console.error('Error fetching SMS phone numbers:', error);
-        throw error;
-      }
-      
-      console.log('SMS phone numbers fetched:', data?.length || 0);
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
       return data || [];
     },
-    enabled: !!organization?.id,
-    retry: 2,
-    retryDelay: 1000,
+    enabled: !!organization?.id
   });
 
+  // Create campaign mutation
   const createCampaignMutation = useMutation({
     mutationFn: async ({ name, template }: { name: string; template: string }) => {
-      if (!organization?.id) {
-        throw new Error('Organization not found');
-      }
+      if (!organization?.id || !user?.id) throw new Error('Missing organization or user');
 
-      if (!name.trim()) {
-        throw new Error('Campaign name is required');
-      }
-
-      if (!template.trim()) {
-        throw new Error('Message template is required');
-      }
-
-      console.log('Creating SMS campaign:', { name, template, orgId: organization.id });
-      
       const { data, error } = await supabase
         .from('sms_campaigns')
         .insert({
           organization_id: organization.id,
-          name: name.trim(),
-          message_template: template.trim(),
-          total_recipients: phoneNumbers?.length || 0
+          name,
+          message_template: template,
+          created_by_user_id: user.id,
+          status: 'draft'
         })
         .select()
         .single();
-      
-      if (error) {
-        console.error('Error creating SMS campaign:', error);
-        throw error;
-      }
-      
-      console.log('SMS campaign created:', data);
+
+      if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      toast({ title: "Campaign created successfully" });
-      queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['sms-campaigns'] });
+      toast({
+        title: "Success",
+        description: "Campaign created successfully"
+      });
     },
-    onError: (error: any) => {
-      console.error('Create campaign error:', error);
-      toast({ 
-        title: "Error creating campaign", 
-        description: error.message || 'An unexpected error occurred', 
-        variant: 'destructive' 
+    onError: (error) => {
+      console.error('Error creating campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create campaign",
+        variant: "destructive"
       });
     }
   });
 
+  // Send campaign mutation - Updated to use Flask wrapper
   const sendCampaignMutation = useMutation({
-    mutationFn: async ({ campaignId, isResend = false, isRetry = false }: { campaignId: string; isResend?: boolean; isRetry?: boolean }) => {
-      if (!organization?.id) {
-        throw new Error('Organization not found');
-      }
-
-      if (!phoneNumbers || phoneNumbers.length === 0) {
-        throw new Error('No active phone numbers found');
-      }
-
-      const campaign = campaigns?.find(c => c.id === campaignId);
-      if (!campaign) {
-        throw new Error('Campaign not found');
-      }
-
-      console.log('Sending SMS campaign:', { campaignId, isResend, isRetry, recipientCount: phoneNumbers.length });
-
-      // Update campaign status to sending
-      await supabase
-        .from('sms_campaigns')
-        .update({ 
-          status: 'sending',
-          started_at: new Date().toISOString()
-        })
-        .eq('id', campaignId);
-
-      // For resend, only get failed phone numbers
-      let targetPhoneNumbers = phoneNumbers.map(p => p.phone_number);
-      
-      if (isResend) {
-        // Get failed sends for this campaign
-        const { data: failedSends } = await supabase
-          .from('sms_sends')
-          .select('phone_number')
-          .eq('campaign_id', campaignId)
-          .eq('status', 'failed');
-        
-        if (failedSends && failedSends.length > 0) {
-          targetPhoneNumbers = failedSends.map(s => s.phone_number);
-        } else {
-          throw new Error('No failed sends to retry for this campaign');
-        }
-      }
-
-      // For retry, send to all numbers again
-      if (isRetry) {
-        targetPhoneNumbers = phoneNumbers.map(p => p.phone_number);
-      }
-
-      // Call the send-sms edge function
-      const { data, error } = await supabase.functions.invoke('send-sms', {
-        body: {
-          phoneNumbers: targetPhoneNumbers,
-          message: campaign.message_template,
-          organizationId: organization.id,
-          campaignId: campaignId
+    mutationFn: async ({ campaignId, isResend = false, isRetry = false }: { 
+      campaignId: string; 
+      isResend?: boolean; 
+      isRetry?: boolean; 
+    }) => {
+      // Call the Flask-enabled send SMS function
+      const { data, error } = await supabase.functions.invoke('send-sms-flask', {
+        body: { 
+          campaignId, 
+          isResend, 
+          isRetry 
         }
       });
 
-      if (error) {
-        console.error('Error sending SMS campaign:', error);
-        // Update campaign status to failed
-        await supabase
-          .from('sms_campaigns')
-          .update({ 
-            status: 'failed',
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', campaignId);
-        throw new Error(error.message || 'Failed to send campaign');
-      }
-
-      console.log('SMS campaign sent successfully:', data);
+      if (error) throw error;
       return data;
     },
-    onSuccess: (data, variables) => {
-      let action = 'Sent';
-      if (variables.isResend) action = 'Resent';
-      if (variables.isRetry) action = 'Retried';
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['sms-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['sms-sends'] });
       
-      toast({ 
-        title: `Campaign ${action.toLowerCase()} successfully`,
-        description: `${action} to ${data.summary.sent} recipients`
+      toast({
+        title: "Success",
+        description: `Campaign sent successfully! ${data.sentCount}/${data.sentCount + data.failedCount} messages delivered.`
       });
-      queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
     },
-    onError: (error: any) => {
-      console.error('Send campaign error:', error);
-      toast({ 
-        title: "Error sending campaign", 
-        description: error.message || 'An unexpected error occurred', 
-        variant: 'destructive' 
+    onError: (error) => {
+      console.error('Error sending campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send campaign",
+        variant: "destructive"
       });
-      // Invalidate to refresh the campaign status
-      queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
     }
   });
 
+  // Campaign control mutation (pause, resume, cancel)
   const campaignControlMutation = useMutation({
-    mutationFn: async ({ campaignId, action }: { campaignId: string; action: 'cancel' | 'pause' | 'resume' }) => {
-      if (!organization?.id) {
-        throw new Error('Organization not found');
-      }
-
-      const campaign = campaigns?.find(c => c.id === campaignId);
-      if (!campaign) {
-        throw new Error('Campaign not found');
-      }
-
-      console.log(`${action} SMS campaign:`, { campaignId });
-
-      let updateData: any = {};
-      
+    mutationFn: async ({ campaignId, action }: { campaignId: string; action: 'pause' | 'resume' | 'cancel' }) => {
+      let status: string;
       switch (action) {
-        case 'cancel':
-          updateData = { 
-            status: 'failed', 
-            completed_at: new Date().toISOString() 
-          };
-          break;
         case 'pause':
-          updateData = { status: 'paused' };
+          status = 'paused';
           break;
         case 'resume':
-          updateData = { status: 'sending' };
+          status = 'sending';
+          break;  
+        case 'cancel':
+          status = 'cancelled';
           break;
+        default:
+          throw new Error('Invalid action');
       }
 
       const { error } = await supabase
         .from('sms_campaigns')
-        .update(updateData)
+        .update({ status })
         .eq('id', campaignId);
 
-      if (error) {
-        console.error(`Error ${action} campaign:`, error);
-        throw error;
-      }
-
-      return { action, campaignId };
+      if (error) throw error;
     },
-    onSuccess: (data) => {
-      const actionText = data.action.charAt(0).toUpperCase() + data.action.slice(1);
-      toast({ title: `Campaign ${data.action}d successfully` });
-      queryClient.invalidateQueries({ queryKey: ['sms-campaigns', organization?.id] });
+    onSuccess: (_, { action }) => {
+      queryClient.invalidateQueries({ queryKey: ['sms-campaigns'] });
+      toast({
+        title: "Success",
+        description: `Campaign ${action}d successfully`
+      });
     },
-    onError: (error: any) => {
-      console.error('Campaign control error:', error);
-      toast({ 
-        title: "Error controlling campaign", 
-        description: error.message || 'An unexpected error occurred', 
-        variant: 'destructive' 
+    onError: (error) => {
+      console.error('Error controlling campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update campaign status",
+        variant: "destructive"
       });
     }
   });
 
   return {
-    campaigns: campaigns || [],
+    campaigns,
     campaignsLoading,
     campaignsError,
-    phoneNumbers: phoneNumbers || [],
+    phoneNumbers,
     phoneNumbersLoading,
     phoneNumbersError,
     createCampaignMutation,

@@ -129,11 +129,21 @@ serve(async (req) => {
 
     const recipients = phoneNumbers.map(p => p.phone_number)
 
+    // Enhanced message template with consent request
+    const consentMessage = `Hi! We'd love your feedback on our service. 
+
+Please reply with:
+1. Yes  
+2. No
+
+Your input helps us improve. 
+Thank you! – ${org.name}`
+
     // Prepare Flask API request payload
     const requestData: FlaskSmsPayload = {
       org_id: org.id,
       recipients,
-      message: campaign.message_template,
+      message: consentMessage, // Use consent message instead of campaign template
       sender: org.sms_sender_id || smsSettings.senderId || '41042',
       username: smsSettings.username,
       api_key: smsSettings.apiKey
@@ -203,7 +213,7 @@ serve(async (req) => {
             campaign_id: campaignId,
             organization_id: campaign.organization_id,
             phone_number: recipient.number,
-            message_content: campaign.message_template,
+            message_content: consentMessage, // Store the actual sent message
             status,
             africastalking_message_id: recipient.messageId,
             sent_at: status === 'sent' ? new Date().toISOString() : null,
@@ -221,7 +231,10 @@ serve(async (req) => {
               sender_id: requestData.sender,
               current_step: 'consent',
               consent_given: false,
-              session_data: { campaign_id: campaignId }
+              session_data: { 
+                campaign_id: campaignId,
+                initiated_at: new Date().toISOString()
+              }
             }, {
               onConflict: 'organization_id,phone_number,sender_id'
             })

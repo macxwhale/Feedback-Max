@@ -1,5 +1,5 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -11,146 +11,148 @@ interface FeedbackSubmission {
   responses: Record<string, any>;
   organizationId: string;
   questions: any[];
-  timingData?: any;
+  timingData?: {
+    sessionStartTime: number;
+    sessionEndTime: number;
+    totalResponseTime: number;
+    averageQuestionTime: number;
+    questionTimes: Record<string, number>;
+  };
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
     const { responses, organizationId, questions, timingData }: FeedbackSubmission = await req.json()
 
-    console.log('Processing feedback submission for org:', organizationId)
+    console.log('Submitting feedback:', { organizationId, responseCount: Object.keys(responses).length })
 
-    const { data: org, error: orgError } = await supabaseClient
-      .from('organizations')
-      .select('id, name')
-      .eq('id', organizationId)
-      .single()
-
-    if (orgError || !org) {
-      throw new Error('Organization not found')
+    // Create feedback session with web origin
+    const sessionMetadata = {
+      origin: 'web',
+      user_agent: req.headers.get('user-agent'),
+      ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip')
     }
 
-    const { data: session, error: sessionError } = await supabaseClient
+    // Add timing data if available
+    if (timingData) {
+      sessionMetadata.timing = timingData
+    }
+
+    const { data: session, error: sessionError } = await supabase
       .from('feedback_sessions')
       .insert({
         organization_id: organizationId,
         status: 'completed',
         completed_at: new Date().toISOString(),
-        started_at: timingData ? new Date(timingData.startTime).toISOString() : new Date().toISOString(),
+        metadata: sessionMetadata,
+        timing_metadata: timingData || null,
+        total_response_time_ms: timingData?.totalResponseTime || null,
+        avg_question_time_ms: timingData?.averageQuestionTime || null
       })
       .select()
       .single()
 
     if (sessionError) {
       console.error('Error creating feedback session:', sessionError)
-      throw sessionError
+      throw new Error('Failed to create feedback session')
     }
 
-    console.log('Created session:', session.id)
+    console.log('Created feedback session:', session.id)
 
-    const responseData = Object.entries(responses).map(([questionId, value]) => {
+    // Process responses and create feedback_responses records
+    const responsePromises = Object.entries(responses).map(async ([questionId, value]) => {
       const question = questions.find(q => q.id === questionId)
-      const score = Math.floor(Math.random() * 5) + 1
-      
-      const questionTiming = timingData?.questionTimes?.find((qt: any) => qt.questionId === questionId);
-
-      return {
-        question_id: questionId,
-        session_id: session.id,
-        organization_id: organizationId,
-        response_value: value,
-        question_category: question?.category || 'Comments',
-        score: score,
-        response_time_ms: questionTiming?.responseTime || null,
-        question_started_at: questionTiming ? new Date(questionTiming.startTime).toISOString() : null,
-        question_completed_at: questionTiming ? new Date(questionTiming.endTime).toISOString() : null,
+      if (!question) {
+        console.warn(`Question ${questionId} not found in provided questions`)
+        return null
       }
+
+      // Calculate score based on response type
+      let score = null
+      if (typeof value === 'number') {
+        score = value
+      } else if (question.question_type === 'star' || question.question_type === 'nps') {
+        score = parseInt(value) || null
+      }
+
+      // Create question snapshot
+      const questionSnapshot = {
+        id: question.id,
+        question_text: question.question_text,
+        question_type: question.question_type,
+        category: question.category,
+        is_required: question.is_required,
+        order_index: question.order_index,
+        organization_id: question.organization_id,
+        captured_at: new Date().toISOString(),
+        options: question.options || [],
+        scale: question.scale || null
+      }
+
+      return await supabase
+        .from('feedback_responses')
+        .insert({
+          session_id: session.id,
+          organization_id: organizationId,
+          question_id: questionId,
+          question_category: question.category || 'QualityService',
+          response_value: value,
+          score: score,
+          question_snapshot: questionSnapshot,
+          question_text_snapshot: question.question_text,
+          question_type_snapshot: question.question_type,
+          response_time_ms: timingData?.questionTimes?.[questionId] || null
+        })
     })
 
-    const { error: responsesError } = await supabaseClient
-      .from('feedback_responses')
-      .insert(responseData)
-
-    if (responsesError) {
-      console.error('Error storing responses:', responsesError)
-      throw responsesError
-    }
-
-    const totalScore = responseData.reduce((sum, r) => sum + (r.score || 0), 0)
+    const responseResults = await Promise.all(responsePromises.filter(p => p !== null))
+    const failedResponses = responseResults.filter(result => result.error)
     
-    const sessionUpdatePayload: {
-      total_score: number;
-      total_response_time_ms?: number;
-      avg_question_time_ms?: number;
-      timing_metadata?: any;
-    } = {
-      total_score: totalScore
-    };
-
-    if (timingData) {
-      sessionUpdatePayload.total_response_time_ms = timingData.totalResponseTime;
-      const validResponseTimes = timingData.questionTimes
-        .map((q: any) => q.responseTime)
-        .filter((rt: number) => rt > 0);
-      
-      if (validResponseTimes.length > 0) {
-        sessionUpdatePayload.avg_question_time_ms = Math.round(
-          validResponseTimes.reduce((a: number, b: number) => a + b, 0) / validResponseTimes.length
-        );
-      }
-      sessionUpdatePayload.timing_metadata = timingData;
+    if (failedResponses.length > 0) {
+      console.error('Some responses failed to save:', failedResponses)
     }
 
-    const { error: updateError } = await supabaseClient
+    const successfulResponses = responseResults.filter(result => !result.error)
+    console.log(`Saved ${successfulResponses.length} responses`)
+
+    // Calculate total score
+    const totalScore = successfulResponses.reduce((sum, result) => {
+      const score = result.data?.score
+      return sum + (typeof score === 'number' ? score : 0)
+    }, 0)
+
+    // Update session with total score
+    await supabase
       .from('feedback_sessions')
-      .update(sessionUpdatePayload)
+      .update({ total_score: totalScore > 0 ? totalScore : null })
       .eq('id', session.id)
 
-    if (updateError) {
-      console.error('Error updating session score:', updateError)
-    }
-
-    console.log('Feedback submission completed successfully:', responseData.length, 'responses')
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        sessionId: session.id,
-        totalScore,
-        responseCount: responseData.length
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
-      }
-    )
+    return new Response(JSON.stringify({
+      success: true,
+      sessionId: session.id,
+      responseCount: successfulResponses.length,
+      totalScore: totalScore > 0 ? totalScore : null
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
 
   } catch (error) {
-    console.error('Error in submit-feedback function:', error)
-    
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message || 'Internal server error' 
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
-      }
-    )
+    console.error('Submit feedback error:', error)
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 })

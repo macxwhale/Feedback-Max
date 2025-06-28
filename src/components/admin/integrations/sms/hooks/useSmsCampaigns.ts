@@ -85,14 +85,13 @@ export const useSmsCampaigns = () => {
     }
   });
 
-  // Send campaign mutation - Updated to use Flask wrapper
+  // Send campaign mutation - Uses Flask wrapper only
   const sendCampaignMutation = useMutation({
     mutationFn: async ({ campaignId, isResend = false, isRetry = false }: { 
       campaignId: string; 
       isResend?: boolean; 
       isRetry?: boolean; 
     }) => {
-      // Call the Flask-enabled send SMS function
       const { data, error } = await supabase.functions.invoke('send-sms-flask', {
         body: { 
           campaignId, 

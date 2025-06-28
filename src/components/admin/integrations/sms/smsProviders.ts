@@ -11,24 +11,10 @@ export interface SmsProvider {
 
 export const smsProviders: SmsProvider[] = [
   {
-    id: 'africastalking',
-    name: "Africa's Talking",
-    description: 'SMS services across Africa with reliable delivery',
+    id: 'sms-provider',
+    name: "SMS Provider (Flask Wrapper)",
+    description: 'SMS services via Flask wrapper integration',
     icon: MessageSquare,
     status: 'available'
-  },
-  {
-    id: 'twilio',
-    name: 'Twilio',
-    description: 'Global SMS and communication platform',
-    icon: MessageSquare,
-    status: 'coming_soon'
-  },
-  {
-    id: 'vonage',
-    name: 'Vonage',
-    description: 'SMS API for global messaging',
-    icon: MessageSquare,
-    status: 'coming_soon'
   }
 ];

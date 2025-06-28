@@ -34,13 +34,10 @@ major_version = 15
 enabled = true
 verify_jwt = true
 
-[functions.handle-sms-webhook]
+[functions.handle-flask-sms-callback]
 verify_jwt = false
 
-[functions.send-sms]
-verify_jwt = true
-
-[functions.send-followup-sms]
+[functions.send-sms-flask]
 verify_jwt = true
 
 [realtime]

@@ -34,39 +34,29 @@ export const useEnhancedInviteUser = () => {
           }
         });
 
-        // Handle network or function invocation errors
+        // Handle Supabase function invoke errors
         if (error) {
-          console.error('Enhanced invite function error:', error);
-          // If it's a network error, provide a more user-friendly message
-          if (error.message?.includes('Failed to send a request')) {
-            throw new Error('Network connection issue. Please check your internet connection and try again.');
-          }
-          throw new Error(error.message || 'Failed to invite user');
+          console.error('Supabase function invoke error:', error);
+          throw new Error(error.message || 'Failed to send invitation request');
         }
 
-        // Handle successful response
-        if (data && typeof data === 'object') {
-          if (!data.success && data.error) {
-            console.error('Invitation failed:', data.error);
-            throw new Error(data.error);
-          }
-          return data as InviteUserResponse;
+        // Handle application-level errors from the function
+        if (!data) {
+          console.error('No data returned from invitation function');
+          throw new Error('No response received from server');
         }
 
-        // Handle unexpected response format
-        console.error('Unexpected response format:', data);
-        throw new Error('Unexpected response from server');
-
-      } catch (networkError: any) {
-        console.error('Network or function call error:', networkError);
-        
-        // Handle specific network errors
-        if (networkError.message?.includes('Failed to send a request')) {
-          throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
+        if (!data.success) {
+          console.error('Invitation failed:', data.error);
+          throw new Error(data.error || 'Failed to invite user');
         }
-        
-        // Re-throw other errors as-is
-        throw networkError;
+
+        console.log('Invitation successful:', data);
+        return data;
+      } catch (error: any) {
+        console.error('Enhanced invite error:', error);
+        // Re-throw with a more user-friendly message if needed
+        throw new Error(error.message || 'Failed to invite user');
       }
     },
     onSuccess: (data) => {
@@ -82,7 +72,8 @@ export const useEnhancedInviteUser = () => {
     },
     onError: (error: any) => {
       console.error('Invitation mutation error:', error);
-      toast.error(error.message || 'Failed to invite user');
+      const errorMessage = error.message || 'Failed to invite user';
+      toast.error(errorMessage);
     }
   });
 };

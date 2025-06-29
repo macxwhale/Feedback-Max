@@ -3,6 +3,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { withRBAC, type RBACContext } from '../_shared/rbac-middleware.ts';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 const getBaseUrl = (req: Request): string => {
   const origin = req.headers.get('origin');
   if (origin) return origin;
@@ -22,6 +27,14 @@ const getBaseUrl = (req: Request): string => {
 
 const handler = async (req: Request, context: RBACContext, body: any): Promise<Response> => {
   try {
+    // Handle CORS preflight requests
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { 
+        headers: corsHeaders,
+        status: 200 
+      });
+    }
+
     // Use the body parameter instead of reading from request again
     const { email, organizationId, role, enhancedRole } = body;
     console.log('Processing enhanced invite for:', email, 'to organization:', organizationId);
@@ -32,7 +45,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         success: false, 
         error: 'Missing required fields: email, organizationId, and role are required' 
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 400
       });
     }
@@ -44,16 +57,19 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
     );
 
     // Get organization details
-    const { data: organization } = await supabaseAdmin
+    const { data: organization, error: orgError } = await supabaseAdmin
       .from('organizations')
       .select('name, slug')
       .eq('id', organizationId)
       .single();
 
-    if (!organization) {
-      console.log('Organization not found');
-      return new Response(JSON.stringify({ error: 'Organization not found' }), {
-        headers: { 'Content-Type': 'application/json' },
+    if (orgError || !organization) {
+      console.log('Organization not found:', orgError);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Organization not found' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 404
       });
     }
@@ -79,7 +95,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
           success: false, 
           error: 'User is already a member of this organization' 
         }), {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
           status: 400
         });
       }
@@ -104,7 +120,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
           success: false,
           error: 'Failed to add user to organization: ' + addError.message,
         }), {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
           status: 500
         });
       }
@@ -115,7 +131,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         message: 'User added to organization successfully.',
         type: 'direct_add',
       }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
@@ -133,7 +149,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         success: false,
         error: 'An invitation is already pending for this email'
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 400
       });
     }
@@ -156,7 +172,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         success: false,
         error: 'Failed to create invitation: ' + inviteError.message,
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 500
       });
     }
@@ -195,7 +211,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         : 'Invitation sent successfully. The user will receive an email to join the organization.',
       type: 'invitation_sent',
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
 
   } catch (error) {
@@ -204,7 +220,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
       success: false, 
       error: error.message || 'An error occurred while inviting the user' 
     }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
       status: 500
     });
   }

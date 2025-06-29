@@ -24,26 +24,50 @@ export const useEnhancedInviteUser = () => {
     mutationFn: async ({ email, organizationId, role, enhancedRole }: InviteUserParams): Promise<InviteUserResponse> => {
       console.log('Sending invitation request:', { email, organizationId, role, enhancedRole });
       
-      const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {
-        body: {
-          email: email.trim().toLowerCase(),
-          organizationId,
-          role,
-          enhancedRole: enhancedRole || role
+      try {
+        const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {
+          body: {
+            email: email.trim().toLowerCase(),
+            organizationId,
+            role,
+            enhancedRole: enhancedRole || role
+          }
+        });
+
+        // Handle network or function invocation errors
+        if (error) {
+          console.error('Enhanced invite function error:', error);
+          // If it's a network error, provide a more user-friendly message
+          if (error.message?.includes('Failed to send a request')) {
+            throw new Error('Network connection issue. Please check your internet connection and try again.');
+          }
+          throw new Error(error.message || 'Failed to invite user');
         }
-      });
 
-      if (error) {
-        console.error('Enhanced invite error:', error);
-        throw new Error(error.message || 'Failed to invite user');
+        // Handle successful response
+        if (data && typeof data === 'object') {
+          if (!data.success && data.error) {
+            console.error('Invitation failed:', data.error);
+            throw new Error(data.error);
+          }
+          return data as InviteUserResponse;
+        }
+
+        // Handle unexpected response format
+        console.error('Unexpected response format:', data);
+        throw new Error('Unexpected response from server');
+
+      } catch (networkError: any) {
+        console.error('Network or function call error:', networkError);
+        
+        // Handle specific network errors
+        if (networkError.message?.includes('Failed to send a request')) {
+          throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
+        }
+        
+        // Re-throw other errors as-is
+        throw networkError;
       }
-
-      if (!data.success) {
-        console.error('Invitation failed:', data.error);
-        throw new Error(data.error || 'Failed to invite user');
-      }
-
-      return data;
     },
     onSuccess: (data) => {
       // Invalidate relevant queries

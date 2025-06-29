@@ -6,6 +6,9 @@ import { SimpleUserManagementHeader } from './SimpleUserManagementHeader';
 import { MemberStats } from './MemberStats';
 import { EnhancedInviteUserModal } from './EnhancedInviteUserModal';
 import { useRemoveUser } from '@/hooks/useUserInvitation';
+import { useRBAC } from '@/hooks/useRBAC';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 interface UserManagementProps {
   organizationId: string;
@@ -36,15 +39,57 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   } = useUserManagement(organizationId);
 
   const removeUserMutation = useRemoveUser();
+  const { hasPermission, userRole, isLoading: rbacLoading } = useRBAC(organizationId);
 
   const handleRemoveMember = (userId: string) => {
+    if (!hasPermission('manage_users')) {
+      console.warn('User attempted to remove member without permission');
+      return;
+    }
     removeUserMutation.mutate({ userId, organizationId });
   };
+
+  const handleRoleUpdate = (userId: string, newRole: string) => {
+    if (!hasPermission('manage_users')) {
+      console.warn('User attempted to update role without permission');
+      return;
+    }
+    handleUpdateRole(userId, newRole);
+  };
+
+  if (rbacLoading || membersLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading user management...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if user has permission to manage users
+  if (!hasPermission('manage_users')) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          You don't have permission to manage users. Contact your organization administrator for access.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   const adminsCount = activeMembers.filter((m: Member) => {
     const role = m.enhanced_role || m.role;
     return ['admin', 'owner'].includes(role || '');
   }).length;
+
+  console.log('UserManagement rendered with:', {
+    userRole,
+    hasManageUsersPermission: hasPermission('manage_users'),
+    activeMembersCount: activeMembers.length
+  });
 
   return (
     <div className="space-y-6">
@@ -63,7 +108,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
         members={activeMembers as Member[]}
         loading={membersLoading}
         organizationId={organizationId}
-        onUpdateRole={handleUpdateRole}
+        onUpdateRole={handleRoleUpdate}
         onRemoveMember={handleRemoveMember}
       />
     </div>

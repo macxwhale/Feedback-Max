@@ -17,11 +17,23 @@ export const useRBAC = (organizationId?: string) => {
     };
   }, [user?.id, organizationId, isAdmin]);
 
-  const { data: userRole, isLoading } = useQuery({
+  const { data: userRole, isLoading, error } = useQuery({
     queryKey: ['user-role-rbac', user?.id, organizationId],
-    queryFn: () => context ? RBACService.getUserRole(context.userId, context.organizationId) : null,
+    queryFn: async () => {
+      if (!context) return null;
+      
+      try {
+        const role = await RBACService.getUserRole(context.userId, context.organizationId);
+        console.log('User role fetched:', role, 'for user:', context.userId);
+        return role;
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+        return null;
+      }
+    },
     enabled: !!context,
     staleTime: 5 * 60 * 1000,
+    retry: 3,
   });
 
   const checkPermission = useCallback(async (
@@ -55,25 +67,39 @@ export const useRBAC = (organizationId?: string) => {
   }, [context, userRole]);
 
   const hasPermissionCheck = useCallback((permission: string): boolean => {
-    if (!context || !userRole) return false;
-    if (isAdmin) return true;
+    if (!context || !userRole) {
+      console.log('Permission check failed: no context or role', { context: !!context, userRole });
+      return false;
+    }
+    if (isAdmin) {
+      console.log('Permission granted: system admin');
+      return true;
+    }
     
-    return hasPermission(userRole, permission);
+    const allowed = hasPermission(userRole, permission);
+    console.log('Permission check:', { permission, userRole, allowed });
+    return allowed;
   }, [context, userRole, isAdmin]);
 
   const canManageUser = useCallback(async (targetUserId: string): Promise<boolean> => {
     if (!context || !userRole) return false;
     if (isAdmin) return true;
 
-    const targetRole = await RBACService.getUserRole(targetUserId, context.organizationId);
-    if (!targetRole) return false;
+    try {
+      const targetRole = await RBACService.getUserRole(targetUserId, context.organizationId);
+      if (!targetRole) return false;
 
-    return canManageRole(userRole, targetRole);
+      return canManageRole(userRole, targetRole);
+    } catch (error) {
+      console.error('Error checking user management permission:', error);
+      return false;
+    }
   }, [context, userRole, isAdmin]);
 
   return {
     userRole,
     isLoading,
+    error,
     checkPermission,
     requirePermission,
     hasPermission: hasPermissionCheck,

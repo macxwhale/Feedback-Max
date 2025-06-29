@@ -3,6 +3,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { withRBAC, type RBACContext } from '../_shared/rbac-middleware.ts';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+};
+
 const getBaseUrl = (req: Request): string => {
   const origin = req.headers.get('origin');
   if (origin) return origin;
@@ -22,7 +28,6 @@ const getBaseUrl = (req: Request): string => {
 
 const handler = async (req: Request, context: RBACContext, body: any): Promise<Response> => {
   try {
-    // Use the body parameter instead of reading from request again
     const { email, organizationId, role, enhancedRole } = body;
     console.log('Processing enhanced invite for:', email, 'to organization:', organizationId);
 
@@ -32,7 +37,19 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         success: false, 
         error: 'Missing required fields: email, organizationId, and role are required' 
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 400
+      });
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Please provide a valid email address' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 400
       });
     }
@@ -44,16 +61,19 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
     );
 
     // Get organization details
-    const { data: organization } = await supabaseAdmin
+    const { data: organization, error: orgError } = await supabaseAdmin
       .from('organizations')
       .select('name, slug')
       .eq('id', organizationId)
       .single();
 
-    if (!organization) {
-      console.log('Organization not found');
-      return new Response(JSON.stringify({ error: 'Organization not found' }), {
-        headers: { 'Content-Type': 'application/json' },
+    if (orgError || !organization) {
+      console.error('Organization not found:', orgError);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Organization not found' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 404
       });
     }
@@ -62,7 +82,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
 
     // Check if user already exists in Supabase Auth
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const userExists = existingUsers.users.find(u => u.email === email);
+    const userExists = existingUsers.users.find(u => u.email === email.toLowerCase().trim());
 
     if (userExists) {
       // Check if user is already in organization
@@ -79,7 +99,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
           success: false, 
           error: 'User is already a member of this organization' 
         }), {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
           status: 400
         });
       }
@@ -90,7 +110,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         .insert({
           user_id: userExists.id,
           organization_id: organizationId,
-          email: email,
+          email: email.toLowerCase().trim(),
           role: role,
           enhanced_role: enhancedRole || role,
           status: 'active',
@@ -102,9 +122,9 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         console.error('Error adding existing user to organization:', addError);
         return new Response(JSON.stringify({
           success: false,
-          error: 'Failed to add user to organization: ' + addError.message,
+          error: 'Failed to add user to organization. Please try again.',
         }), {
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
           status: 500
         });
       }
@@ -112,10 +132,10 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
       console.log('Existing user added to organization successfully');
       return new Response(JSON.stringify({
         success: true,
-        message: 'User added to organization successfully.',
+        message: 'User successfully added to organization.',
         type: 'direct_add',
       }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
@@ -123,7 +143,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
     const { data: existingInvitation } = await supabaseAdmin
       .from('user_invitations')
       .select('id')
-      .eq('email', email)
+      .eq('email', email.toLowerCase().trim())
       .eq('organization_id', organizationId)
       .eq('status', 'pending')
       .maybeSingle();
@@ -131,9 +151,9 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
     if (existingInvitation) {
       return new Response(JSON.stringify({
         success: false,
-        error: 'An invitation is already pending for this email'
+        error: 'An invitation is already pending for this email address'
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 400
       });
     }
@@ -142,7 +162,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
     const { error: inviteError } = await supabaseAdmin
       .from('user_invitations')
       .insert({
-        email: email,
+        email: email.toLowerCase().trim(),
         organization_id: organizationId,
         role: role,
         enhanced_role: enhancedRole || role,
@@ -154,9 +174,9 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
       console.error('Failed to create invitation:', inviteError);
       return new Response(JSON.stringify({
         success: false,
-        error: 'Failed to create invitation: ' + inviteError.message,
+        error: 'Failed to create invitation. Please try again.',
       }), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 500
       });
     }
@@ -167,7 +187,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
     
     console.log('Using redirect URL:', redirectUrl);
 
-    const { data: inviteResponse, error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+    const { data: inviteResponse, error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email.toLowerCase().trim(), {
       redirectTo: redirectUrl,
       data: {
         organization_name: organization.name,
@@ -182,29 +202,39 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
 
     if (emailError) {
       console.error('Failed to send invitation email:', emailError);
-      // Don't fail the entire process if email fails - invitation record is still created
-      console.log('Invitation created but email sending failed - user can still be manually notified');
+      // Update invitation status to indicate email failed
+      await supabaseAdmin
+        .from('user_invitations')
+        .update({ status: 'email_failed' })
+        .eq('email', email.toLowerCase().trim())
+        .eq('organization_id', organizationId);
+      
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed to send invitation email. Please check the email address and try again.',
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 500
+      });
     } else {
       console.log('Invitation email sent successfully via Supabase');
     }
 
     return new Response(JSON.stringify({
       success: true,
-      message: emailError 
-        ? 'Invitation created successfully but email sending failed. Please manually notify the user.'
-        : 'Invitation sent successfully. The user will receive an email to join the organization.',
+      message: 'Invitation sent successfully! The user will receive an email to join the organization.',
       type: 'invitation_sent',
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
 
   } catch (error) {
     console.error('Error in enhanced-invite-user:', error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error.message || 'An error occurred while inviting the user' 
+      error: 'An unexpected error occurred while sending the invitation. Please try again.' 
     }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
       status: 500
     });
   }

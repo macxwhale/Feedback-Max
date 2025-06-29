@@ -24,26 +24,40 @@ export const useEnhancedInviteUser = () => {
     mutationFn: async ({ email, organizationId, role, enhancedRole }: InviteUserParams): Promise<InviteUserResponse> => {
       console.log('Sending invitation request:', { email, organizationId, role, enhancedRole });
       
-      const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {
-        body: {
-          email: email.trim().toLowerCase(),
-          organizationId,
-          role,
-          enhancedRole: enhancedRole || role
-        }
-      });
+      try {
+        const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {
+          body: {
+            email: email.trim().toLowerCase(),
+            organizationId,
+            role,
+            enhancedRole: enhancedRole || role
+          }
+        });
 
-      if (error) {
+        // Handle Supabase function invoke errors
+        if (error) {
+          console.error('Supabase function invoke error:', error);
+          throw new Error(error.message || 'Failed to send invitation request');
+        }
+
+        // Handle application-level errors from the function
+        if (!data) {
+          console.error('No data returned from invitation function');
+          throw new Error('No response received from server');
+        }
+
+        if (!data.success) {
+          console.error('Invitation failed:', data.error);
+          throw new Error(data.error || 'Failed to invite user');
+        }
+
+        console.log('Invitation successful:', data);
+        return data;
+      } catch (error: any) {
         console.error('Enhanced invite error:', error);
+        // Re-throw with a more user-friendly message if needed
         throw new Error(error.message || 'Failed to invite user');
       }
-
-      if (!data.success) {
-        console.error('Invitation failed:', data.error);
-        throw new Error(data.error || 'Failed to invite user');
-      }
-
-      return data;
     },
     onSuccess: (data) => {
       // Invalidate relevant queries
@@ -58,7 +72,8 @@ export const useEnhancedInviteUser = () => {
     },
     onError: (error: any) => {
       console.error('Invitation mutation error:', error);
-      toast.error(error.message || 'Failed to invite user');
+      const errorMessage = error.message || 'Failed to invite user';
+      toast.error(errorMessage);
     }
   });
 };

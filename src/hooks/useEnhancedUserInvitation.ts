@@ -14,7 +14,7 @@ interface InviteUserResponse {
   success: boolean;
   error?: string;
   message?: string;
-  type?: 'direct_add' | 'invitation';
+  type?: 'direct_add' | 'invitation_sent';
 }
 
 export const useEnhancedInviteUser = () => {
@@ -22,9 +22,11 @@ export const useEnhancedInviteUser = () => {
 
   return useMutation({
     mutationFn: async ({ email, organizationId, role, enhancedRole }: InviteUserParams): Promise<InviteUserResponse> => {
+      console.log('Sending invitation request:', { email, organizationId, role, enhancedRole });
+      
       const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {
         body: {
-          email,
+          email: email.trim().toLowerCase(),
           organizationId,
           role,
           enhancedRole: enhancedRole || role
@@ -34,6 +36,11 @@ export const useEnhancedInviteUser = () => {
       if (error) {
         console.error('Enhanced invite error:', error);
         throw new Error(error.message || 'Failed to invite user');
+      }
+
+      if (!data.success) {
+        console.error('Invitation failed:', data.error);
+        throw new Error(data.error || 'Failed to invite user');
       }
 
       return data;
@@ -50,6 +57,7 @@ export const useEnhancedInviteUser = () => {
       }
     },
     onError: (error: any) => {
+      console.error('Invitation mutation error:', error);
       toast.error(error.message || 'Failed to invite user');
     }
   });

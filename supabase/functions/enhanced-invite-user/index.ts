@@ -20,9 +20,10 @@ const getBaseUrl = (req: Request): string => {
   return 'https://pulsify.co.ke';
 };
 
-const handler = async (req: Request, context: RBACContext): Promise<Response> => {
+const handler = async (req: Request, context: RBACContext, body: any): Promise<Response> => {
   try {
-    const { email, organizationId, role, enhancedRole } = await req.json();
+    // Use the body parameter instead of reading from request again
+    const { email, organizationId, role, enhancedRole } = body;
     console.log('Processing enhanced invite for:', email, 'to organization:', organizationId);
 
     // Validate input
@@ -60,8 +61,8 @@ const handler = async (req: Request, context: RBACContext): Promise<Response> =>
     console.log('Organization found:', organization.name);
 
     // Check if user already exists in Supabase Auth
-    const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers();
-    const userExists = existingUser.users.find(u => u.email === email);
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const userExists = existingUsers.users.find(u => u.email === email);
 
     if (userExists) {
       // Check if user is already in organization
@@ -83,7 +84,7 @@ const handler = async (req: Request, context: RBACContext): Promise<Response> =>
         });
       }
 
-      // Add existing user directly to organization
+      // Add existing user directly to organization with enhanced role
       const { error: addError } = await supabaseAdmin
         .from('organization_users')
         .insert({
@@ -118,14 +119,55 @@ const handler = async (req: Request, context: RBACContext): Promise<Response> =>
       });
     }
 
-    // User doesn't exist - send invitation
+    // User doesn't exist - check for existing invitation
+    const { data: existingInvitation } = await supabaseAdmin
+      .from('user_invitations')
+      .select('id')
+      .eq('email', email)
+      .eq('organization_id', organizationId)
+      .eq('status', 'pending')
+      .maybeSingle();
+
+    if (existingInvitation) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'An invitation is already pending for this email'
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 400
+      });
+    }
+
+    // Create invitation record with enhanced role
+    const { error: inviteError } = await supabaseAdmin
+      .from('user_invitations')
+      .insert({
+        email: email,
+        organization_id: organizationId,
+        role: role,
+        enhanced_role: enhancedRole || role,
+        invited_by_user_id: context.userId,
+        status: 'pending'
+      });
+
+    if (inviteError) {
+      console.error('Failed to create invitation:', inviteError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed to create invitation: ' + inviteError.message,
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 500
+      });
+    }
+
+    // Send invitation email using Supabase's built-in invitation system
     const baseUrl = getBaseUrl(req);
     const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true`;
     
     console.log('Using redirect URL:', redirectUrl);
 
-    // Use Supabase's built-in invitation system with organization context
-    const { data: inviteResponse, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+    const { data: inviteResponse, error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       redirectTo: redirectUrl,
       data: {
         organization_name: organization.name,
@@ -133,27 +175,24 @@ const handler = async (req: Request, context: RBACContext): Promise<Response> =>
         organization_id: organizationId,
         role: role,
         enhanced_role: enhancedRole || role,
-        inviter_email: context.userId, // Use context from RBAC
+        inviter_email: context.userEmail || 'system',
         invitation_type: 'organization_invite'
       }
     });
 
-    if (inviteError) {
-      console.error('Failed to send invitation email:', inviteError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to send invitation email: ' + inviteError.message,
-      }), {
-        headers: { 'Content-Type': 'application/json' },
-        status: 500
-      });
+    if (emailError) {
+      console.error('Failed to send invitation email:', emailError);
+      // Don't fail the entire process if email fails - invitation record is still created
+      console.log('Invitation created but email sending failed - user can still be manually notified');
+    } else {
+      console.log('Invitation email sent successfully via Supabase');
     }
-
-    console.log('Invitation email sent successfully via Supabase');
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Invitation sent successfully. The user will receive an email to join the organization.',
+      message: emailError 
+        ? 'Invitation created successfully but email sending failed. Please manually notify the user.'
+        : 'Invitation sent successfully. The user will receive an email to join the organization.',
       type: 'invitation_sent',
     }), {
       headers: { 'Content-Type': 'application/json' }
@@ -171,9 +210,10 @@ const handler = async (req: Request, context: RBACContext): Promise<Response> =>
   }
 };
 
-// Apply RBAC middleware with required permission
+// Apply RBAC middleware with required permission and pass body to handler
 serve(withRBAC({
   requiredPermission: 'manage_users',
   requireOrgMembership: true,
-  allowSystemAdmin: true
+  allowSystemAdmin: true,
+  passBodyToHandler: true
 })(handler));

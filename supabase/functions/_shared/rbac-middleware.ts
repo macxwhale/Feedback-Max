@@ -1,200 +1,180 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 export interface RBACContext {
   userId: string;
-  organizationId?: string;
-  userRole?: string;
-  isAdmin?: boolean;
+  userEmail?: string;
+  organizationId: string;
+  userRole: string;
+  isSystemAdmin: boolean;
 }
 
-export interface RBACOptions {
+export interface RBACConfig {
   requiredPermission?: string;
-  requiredRole?: string;
-  allowSystemAdmin?: boolean;
   requireOrgMembership?: boolean;
+  allowSystemAdmin?: boolean;
+  getOrgId?: (req: Request) => string | null;
+  passBodyToHandler?: boolean; // New option
 }
 
-export class EdgeRBACService {
-  private supabase: any;
+// Permission mapping
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  'owner': ['*'],
+  'admin': ['manage_organization', 'manage_users', 'manage_questions', 'view_analytics', 'export_data', 'manage_integrations'],
+  'manager': ['manage_users', 'manage_questions', 'view_analytics', 'export_data'],
+  'analyst': ['view_analytics', 'export_data', 'manage_questions'],
+  'member': ['view_analytics'],
+  'viewer': ['view_analytics']
+};
 
-  constructor(supabaseUrl: string, supabaseKey: string) {
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+function hasPermission(userRole: string, permission: string): boolean {
+  const permissions = ROLE_PERMISSIONS[userRole] || [];
+  return permissions.includes('*') || permissions.includes(permission);
+}
+
+function getRequiredRoleForPermission(permission: string): string {
+  for (const [role, permissions] of Object.entries(ROLE_PERMISSIONS)) {
+    if (permissions.includes('*') || permissions.includes(permission)) {
+      return role;
+    }
   }
+  return 'admin';
+}
 
-  async validateRequest(
-    req: Request,
-    options: RBACOptions = {}
-  ): Promise<{ context: RBACContext; error?: string }> {
-    const {
-      requiredPermission,
-      requiredRole,
-      allowSystemAdmin = true,
-      requireOrgMembership = false
-    } = options;
-
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return { context: {} as RBACContext, error: 'Authorization header required' };
-    }
-
-    const { data: { user }, error: authError } = await this.supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      return { context: {} as RBACContext, error: 'Invalid authentication' };
-    }
-
-    const context: RBACContext = { userId: user.id };
-
-    if (allowSystemAdmin) {
-      const { data: isAdmin, error: adminError } = await this.supabase
-        .rpc('get_current_user_admin_status');
-      
-      if (!adminError && isAdmin) {
-        context.isAdmin = true;
-        return { context };
-      }
-    }
-
-    const url = new URL(req.url);
-    let organizationId = url.searchParams.get('organizationId');
-    
-    if (!organizationId && req.method !== 'GET') {
+export function withRBAC(config: RBACConfig) {
+  return (handler: (req: Request, context: RBACContext, body?: any) => Promise<Response>) => {
+    return async (req: Request): Promise<Response> => {
       try {
-        const body = await req.json();
-        organizationId = body.organizationId;
-      } catch (e) {
-        // Body might not be JSON or already consumed
-      }
-    }
-
-    if (requireOrgMembership && !organizationId) {
-      return { context, error: 'Organization ID required' };
-    }
-
-    if (organizationId) {
-      context.organizationId = organizationId;
-
-      const { data: orgUser, error: orgError } = await this.supabase
-        .from('organization_users')
-        .select('enhanced_role')
-        .eq('user_id', user.id)
-        .eq('organization_id', organizationId)
-        .single();
-
-      if (orgError && requireOrgMembership) {
-        return { context, error: 'User not member of organization' };
-      }
-
-      if (orgUser) {
-        context.userRole = orgUser.enhanced_role;
-      }
-    }
-
-    if (requiredRole && context.userRole) {
-      const hasRequiredRole = this.checkRoleHierarchy(context.userRole, requiredRole);
-      if (!hasRequiredRole) {
-        return { 
-          context, 
-          error: `Required role '${requiredRole}' or higher, but user has '${context.userRole}'` 
-        };
-      }
-    }
-
-    if (requiredPermission && context.userRole) {
-      const hasPermission = this.checkPermission(context.userRole, requiredPermission);
-      if (!hasPermission) {
-        return { 
-          context, 
-          error: `Permission '${requiredPermission}' required` 
-        };
-      }
-    }
-
-    return { context };
-  }
-
-  private checkRoleHierarchy(userRole: string, requiredRole: string): boolean {
-    const roleHierarchy: Record<string, number> = {
-      'viewer': 1,
-      'member': 2,
-      'analyst': 3,
-      'manager': 4,
-      'admin': 5,
-      'owner': 6
-    };
-
-    const userLevel = roleHierarchy[userRole] || 0;
-    const requiredLevel = roleHierarchy[requiredRole] || 0;
-
-    return userLevel >= requiredLevel;
-  }
-
-  private checkPermission(userRole: string, permission: string): boolean {
-    const rolePermissions: Record<string, string[]> = {
-      'viewer': ['view_analytics'],
-      'member': ['view_analytics'],
-      'analyst': ['view_analytics', 'export_data', 'manage_questions'],
-      'manager': ['view_analytics', 'export_data', 'manage_questions', 'manage_users'],
-      'admin': ['view_analytics', 'export_data', 'manage_questions', 'manage_users', 'manage_integrations', 'manage_organization'],
-      'owner': ['view_analytics', 'export_data', 'manage_questions', 'manage_users', 'manage_integrations', 'manage_organization', 'manage_billing']
-    };
-
-    const userPermissions = rolePermissions[userRole] || [];
-    return userPermissions.includes(permission);
-  }
-
-  createResponse(error: string, status: number = 403): Response {
-    return new Response(
-      JSON.stringify({ 
-        error, 
-        timestamp: new Date().toISOString(),
-        code: 'RBAC_ERROR'
-      }),
-      {
-        status,
-        headers: {
-          'Content-Type': 'application/json',
+        const corsHeaders = {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+        };
+
+        if (req.method === 'OPTIONS') {
+          return new Response('ok', { headers: corsHeaders });
         }
-      }
-    );
-  }
-}
 
-export function withRBAC(options: RBACOptions) {
-  return function(handler: (req: Request, context: RBACContext) => Promise<Response>) {
-    return async (req: Request): Promise<Response> => {
-      if (req.method === 'OPTIONS') {
-        return new Response(null, {
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        // Parse body once if needed
+        let body = null;
+        if (config.passBodyToHandler && req.method !== 'GET') {
+          try {
+            body = await req.json();
+          } catch (error) {
+            console.error('Failed to parse request body:', error);
+            return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
           }
+        }
+
+        // Get organization ID from body, query params, or URL
+        let organizationId = config.getOrgId?.(req);
+        if (!organizationId && body?.organizationId) {
+          organizationId = body.organizationId;
+        }
+        if (!organizationId) {
+          const url = new URL(req.url);
+          organizationId = url.searchParams.get('organizationId') || url.searchParams.get('org_id');
+        }
+
+        // Create Supabase client
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_ANON_KEY')!,
+          { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+        );
+
+        // Get current user
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+        if (userError || !user) {
+          return new Response(JSON.stringify({ error: 'Authentication required' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Check if user is system admin
+        const { data: adminData } = await supabaseClient
+          .from('admin_users')
+          .select('is_super_admin')
+          .eq('user_id', user.id)
+          .single();
+
+        const isSystemAdmin = adminData?.is_super_admin || false;
+
+        // Allow system admins to bypass all checks if configured
+        if (config.allowSystemAdmin && isSystemAdmin) {
+          const context: RBACContext = {
+            userId: user.id,
+            userEmail: user.email,
+            organizationId: organizationId || '',
+            userRole: 'owner', // System admins get owner-level permissions
+            isSystemAdmin: true
+          };
+          
+          return await handler(req, context, body);
+        }
+
+        // Check organization membership if required
+        if (config.requireOrgMembership && organizationId) {
+          const { data: orgUser } = await supabaseClient
+            .from('organization_users')
+            .select('enhanced_role, role')
+            .eq('user_id', user.id)
+            .eq('organization_id', organizationId)
+            .eq('status', 'active')
+            .single();
+
+          if (!orgUser) {
+            return new Response(JSON.stringify({ error: 'Organization membership required' }), {
+              status: 403,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+
+          // Check permission if specified
+          if (config.requiredPermission) {
+            const userRole = orgUser.enhanced_role || orgUser.role;
+            if (!hasPermission(userRole, config.requiredPermission)) {
+              return new Response(JSON.stringify({ 
+                error: `Permission '${config.requiredPermission}' required`,
+                required_role: getRequiredRoleForPermission(config.requiredPermission)
+              }), {
+                status: 403,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              });
+            }
+          }
+
+          const context: RBACContext = {
+            userId: user.id,
+            userEmail: user.email,
+            organizationId: organizationId,
+            userRole: orgUser.enhanced_role || orgUser.role,
+            isSystemAdmin: false
+          };
+
+          return await handler(req, context, body);
+        }
+
+        // Default context for non-org-specific operations
+        const context: RBACContext = {
+          userId: user.id,
+          userEmail: user.email,
+          organizationId: organizationId || '',
+          userRole: isSystemAdmin ? 'owner' : 'member',
+          isSystemAdmin
+        };
+
+        return await handler(req, context, body);
+
+      } catch (error) {
+        console.error('RBAC middleware error:', error);
+        return new Response(JSON.stringify({ error: 'Internal server error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
         });
-      }
-
-      const rbacService = new EdgeRBACService(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      );
-
-      const { context, error } = await rbacService.validateRequest(req, options);
-
-      if (error) {
-        console.error('RBAC validation failed:', error);
-        return rbacService.createResponse(error);
-      }
-
-      try {
-        return await handler(req, context);
-      } catch (err) {
-        console.error('Handler error:', err);
-        return rbacService.createResponse('Internal server error', 500);
       }
     };
   };

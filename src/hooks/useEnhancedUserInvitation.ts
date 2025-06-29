@@ -34,9 +34,19 @@ export const useEnhancedInviteUser = () => {
           }
         });
 
-        // Handle Supabase function invoke errors
+        // Handle Supabase function invoke errors (network/infrastructure issues)
         if (error) {
           console.error('Supabase function invoke error:', error);
+          
+          // Check for specific error types
+          if (error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
+            throw new Error('Network error: Please check your internet connection and try again');
+          }
+          
+          if (error.message?.includes('FunctionsError')) {
+            throw new Error('Service temporarily unavailable. Please try again in a moment');
+          }
+          
           throw new Error(error.message || 'Failed to send invitation request');
         }
 
@@ -46,7 +56,8 @@ export const useEnhancedInviteUser = () => {
           throw new Error('No response received from server');
         }
 
-        if (!data.success) {
+        // Check if the response indicates failure
+        if (data.success === false) {
           console.error('Invitation failed:', data.error);
           throw new Error(data.error || 'Failed to invite user');
         }

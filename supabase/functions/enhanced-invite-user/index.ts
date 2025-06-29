@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { withRBAC, type RBACContext } from '../_shared/rbac-middleware.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,8 +25,73 @@ const getBaseUrl = (req: Request): string => {
   return 'https://pulsify.co.ke';
 };
 
-const handler = async (req: Request, context: RBACContext, body: any): Promise<Response> => {
+serve(async (req: Request) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { 
+      headers: corsHeaders,
+      status: 200
+    });
+  }
+
   try {
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('No valid authorization header');
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Authentication required' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 401
+      });
+    }
+
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      {
+        auth: {
+          persistSession: false,
+        },
+        global: {
+          headers: {
+            Authorization: authHeader,
+          },
+        },
+      }
+    );
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      console.error('Failed to get user:', userError);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Invalid authentication token' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 401
+      });
+    }
+
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Invalid request body' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 400
+      });
+    }
+
     const { email, organizationId, role, enhancedRole } = body;
     console.log('Processing enhanced invite for:', email, 'to organization:', organizationId);
 
@@ -54,7 +118,38 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
       });
     }
 
-    // Create admin client
+    // Check if user has permission to invite users
+    const { data: orgUser, error: permissionError } = await supabaseClient
+      .from('organization_users')
+      .select('enhanced_role')
+      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (permissionError || !orgUser) {
+      console.error('Permission check failed:', permissionError);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'You are not a member of this organization' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 403
+      });
+    }
+
+    // Check if user has sufficient permissions (manager, admin, or owner can invite)
+    const allowedRoles = ['manager', 'admin', 'owner'];
+    if (!allowedRoles.includes(orgUser.enhanced_role)) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'You need manager-level access or higher to invite users' 
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 403
+      });
+    }
+
+    // Create admin client for operations
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -114,7 +209,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
           role: role,
           enhanced_role: enhancedRole || role,
           status: 'active',
-          invited_by_user_id: context.userId,
+          invited_by_user_id: user.id,
           accepted_at: new Date().toISOString()
         });
 
@@ -135,7 +230,8 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         message: 'User successfully added to organization.',
         type: 'direct_add',
       }), {
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        status: 200
       });
     }
 
@@ -166,7 +262,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         organization_id: organizationId,
         role: role,
         enhanced_role: enhancedRole || role,
-        invited_by_user_id: context.userId,
+        invited_by_user_id: user.id,
         status: 'pending'
       });
 
@@ -195,7 +291,7 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
         organization_id: organizationId,
         role: role,
         enhanced_role: enhancedRole || role,
-        inviter_email: context.userEmail || 'system',
+        inviter_email: user.email || 'system',
         invitation_type: 'organization_invite'
       }
     });
@@ -225,7 +321,8 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
       message: 'Invitation sent successfully! The user will receive an email to join the organization.',
       type: 'invitation_sent',
     }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      status: 200
     });
 
   } catch (error) {
@@ -238,12 +335,4 @@ const handler = async (req: Request, context: RBACContext, body: any): Promise<R
       status: 500
     });
   }
-};
-
-// Apply RBAC middleware with required permission and pass body to handler
-serve(withRBAC({
-  requiredPermission: 'manage_users',
-  requireOrgMembership: true,
-  allowSystemAdmin: true,
-  passBodyToHandler: true
-})(handler));
+});

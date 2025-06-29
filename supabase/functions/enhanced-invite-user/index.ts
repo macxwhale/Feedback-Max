@@ -26,6 +26,8 @@ const getBaseUrl = (req: Request): string => {
 };
 
 serve(async (req: Request) => {
+  console.log('Enhanced invite function called with method:', req.method);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
@@ -37,6 +39,8 @@ serve(async (req: Request) => {
   try {
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
+    console.log('Auth header present:', !!authHeader);
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.error('No valid authorization header');
       return new Response(JSON.stringify({ 
@@ -77,15 +81,20 @@ serve(async (req: Request) => {
       });
     }
 
+    console.log('User authenticated:', user.email);
+
     // Parse request body
     let body;
     try {
-      body = await req.json();
+      const bodyText = await req.text();
+      console.log('Raw request body:', bodyText);
+      body = JSON.parse(bodyText);
+      console.log('Parsed body:', body);
     } catch (parseError) {
       console.error('Failed to parse request body:', parseError);
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Invalid request body' 
+        error: 'Invalid request body - must be valid JSON' 
       }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 400
@@ -93,10 +102,11 @@ serve(async (req: Request) => {
     }
 
     const { email, organizationId, role, enhancedRole } = body;
-    console.log('Processing enhanced invite for:', email, 'to organization:', organizationId);
+    console.log('Processing enhanced invite for:', email, 'to organization:', organizationId, 'with role:', role);
 
     // Validate input
     if (!email || !organizationId || !role) {
+      console.error('Missing required fields:', { email: !!email, organizationId: !!organizationId, role: !!role });
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'Missing required fields: email, organizationId, and role are required' 
@@ -109,6 +119,7 @@ serve(async (req: Request) => {
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
+      console.error('Invalid email format:', email);
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'Please provide a valid email address' 
@@ -130,7 +141,7 @@ serve(async (req: Request) => {
       console.error('Permission check failed:', permissionError);
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'You are not a member of this organization' 
+        error: 'You are not a member of this organization or do not have permission to invite users' 
       }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 403
@@ -140,6 +151,7 @@ serve(async (req: Request) => {
     // Check if user has sufficient permissions (manager, admin, or owner can invite)
     const allowedRoles = ['manager', 'admin', 'owner'];
     if (!allowedRoles.includes(orgUser.enhanced_role)) {
+      console.error('Insufficient permissions. User role:', orgUser.enhanced_role);
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'You need manager-level access or higher to invite users' 
@@ -148,6 +160,8 @@ serve(async (req: Request) => {
         status: 403
       });
     }
+
+    console.log('Permission check passed. User role:', orgUser.enhanced_role);
 
     // Create admin client for operations
     const supabaseAdmin = createClient(
@@ -180,6 +194,8 @@ serve(async (req: Request) => {
     const userExists = existingUsers.users.find(u => u.email === email.toLowerCase().trim());
 
     if (userExists) {
+      console.log('User exists in auth, checking if already in organization');
+      
       // Check if user is already in organization
       const { data: existingOrgUser } = await supabaseAdmin
         .from('organization_users')
@@ -235,6 +251,8 @@ serve(async (req: Request) => {
       });
     }
 
+    console.log('User does not exist in auth, creating invitation');
+
     // User doesn't exist - check for existing invitation
     const { data: existingInvitation } = await supabaseAdmin
       .from('user_invitations')
@@ -245,6 +263,7 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (existingInvitation) {
+      console.log('Existing invitation found');
       return new Response(JSON.stringify({
         success: false,
         error: 'An invitation is already pending for this email address'
@@ -276,6 +295,8 @@ serve(async (req: Request) => {
         status: 500
       });
     }
+
+    console.log('Invitation record created successfully');
 
     // Send invitation email using Supabase's built-in invitation system
     const baseUrl = getBaseUrl(req);
@@ -312,9 +333,9 @@ serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
         status: 500
       });
-    } else {
-      console.log('Invitation email sent successfully via Supabase');
     }
+
+    console.log('Invitation email sent successfully via Supabase');
 
     return new Response(JSON.stringify({
       success: true,

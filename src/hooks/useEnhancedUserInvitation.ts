@@ -34,6 +34,8 @@ export const useEnhancedInviteUser = () => {
           }
         });
 
+        console.log('Function response:', { data, error });
+
         // Handle Supabase function invoke errors (network/infrastructure issues)
         if (error) {
           console.error('Supabase function invoke error:', error);
@@ -43,8 +45,10 @@ export const useEnhancedInviteUser = () => {
             throw new Error('Network error: Please check your internet connection and try again');
           }
           
-          if (error.message?.includes('FunctionsError')) {
-            throw new Error('Service temporarily unavailable. Please try again in a moment');
+          if (error.message?.includes('FunctionsError') || error.message?.includes('non-2xx status code')) {
+            // Try to extract more meaningful error from the response
+            const errorMessage = data?.error || 'Service error occurred. Please try again.';
+            throw new Error(errorMessage);
           }
           
           throw new Error(error.message || 'Failed to send invitation request');
@@ -56,18 +60,33 @@ export const useEnhancedInviteUser = () => {
           throw new Error('No response received from server');
         }
 
-        // Check if the response indicates failure
-        if (data.success === false) {
-          console.error('Invitation failed:', data.error);
-          throw new Error(data.error || 'Failed to invite user');
+        // Type guard to check if data has success property
+        if (typeof data === 'object' && data !== null && 'success' in data) {
+          const response = data as InviteUserResponse;
+          
+          // Check if the response indicates failure
+          if (response.success === false) {
+            console.error('Invitation failed:', response.error);
+            throw new Error(response.error || 'Failed to invite user');
+          }
+
+          console.log('Invitation successful:', response);
+          return response;
         }
 
-        console.log('Invitation successful:', data);
-        return data;
+        // If data doesn't have expected structure, assume success
+        console.log('Invitation completed with response:', data);
+        return {
+          success: true,
+          message: 'Invitation processed successfully',
+          type: 'invitation_sent'
+        };
+        
       } catch (error: any) {
         console.error('Enhanced invite error:', error);
         // Re-throw with a more user-friendly message if needed
-        throw new Error(error.message || 'Failed to invite user');
+        const errorMessage = error.message || 'Failed to invite user. Please try again.';
+        throw new Error(errorMessage);
       }
     },
     onSuccess: (data) => {

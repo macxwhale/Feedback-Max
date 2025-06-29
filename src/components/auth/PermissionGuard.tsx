@@ -2,7 +2,7 @@
 import React from 'react';
 import { useRBAC } from '@/hooks/useRBAC';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, Lock, UserX, Loader2 } from 'lucide-react';
+import { AlertTriangle, Lock, UserX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getEnhancedRoleBadge } from '@/utils/enhancedRoleUtils';
 
@@ -21,52 +21,25 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   fallback,
   showRequiredRole = true
 }) => {
-  const { hasPermission, userRole, isLoading, isAdmin, error } = useRBAC(organizationId);
+  const { hasPermission, userRole, isLoading, isAdmin } = useRBAC(organizationId);
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm text-gray-600">Checking permissions...</span>
-        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
-    );
-  }
-
-  // Handle errors in role fetching
-  if (error) {
-    console.error('Permission guard error:', error);
-    return (
-      <Card className="border-amber-200">
-        <CardHeader>
-          <CardTitle className="flex items-center text-amber-600">
-            <AlertTriangle className="w-5 h-5 mr-2" />
-            Permission Check Failed
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600">
-            Unable to verify permissions. Please refresh the page or contact support if the issue persists.
-          </p>
-        </CardContent>
-      </Card>
     );
   }
 
   // Admin bypass
   if (isAdmin) {
-    console.log('Permission granted via system admin privileges');
     return <>{children}</>;
   }
 
   // Check permission
   if (hasPermission(permission)) {
-    console.log('Permission granted:', permission);
     return <>{children}</>;
   }
-
-  console.log('Permission denied:', { permission, userRole, organizationId });
 
   // Show fallback if provided
   if (fallback) {

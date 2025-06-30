@@ -51,9 +51,17 @@ const AuthCallback: React.FC = () => {
             return;
           }
 
+          // Handle invitation flow for new users (email confirmation from invitation)
+          if (isInvitation && userEmail && orgSlugFromUrl && isEmailConfirmation) {
+            console.log('Processing invitation signup for:', userEmail, 'to org:', orgSlugFromUrl);
+            // For new users who signed up via invitation, redirect to password reset to set their password
+            navigate('/auth?reset=true&invitation=true&org=' + orgSlugFromUrl);
+            return;
+          }
+
           // Handle invitation flow for existing users
-          if (isInvitation && userEmail && orgSlugFromUrl) {
-            console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
+          if (isInvitation && userEmail && orgSlugFromUrl && !isEmailConfirmation) {
+            console.log('Processing invitation for existing user:', userEmail, 'to org:', orgSlugFromUrl);
             await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
             return;
           }
@@ -144,6 +152,20 @@ const AuthCallback: React.FC = () => {
           console.log('User successfully added to organization');
         } else {
           console.log('User already in organization');
+        }
+
+        // Mark invitation as accepted
+        const { error: updateError } = await supabase
+          .from('user_invitations')
+          .update({ 
+            status: 'accepted',
+            updated_at: new Date().toISOString()
+          })
+          .eq('email', userEmail.toLowerCase().trim())
+          .eq('organization_id', organization.id);
+
+        if (updateError) {
+          console.warn('Could not update invitation status:', updateError);
         }
 
         // Redirect to organization dashboard

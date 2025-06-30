@@ -28,31 +28,60 @@ export const useUserManagement = (organizationId: string) => {
     queryFn: async (): Promise<MemberWithInviter[]> => {
       console.log('Fetching organization members for:', organizationId);
       
-      // Use the RPC function to avoid RLS issues
-      const { data, error } = await supabase.rpc('get_organization_members', {
-        p_org_id: organizationId
-      });
+      // Fetch organization users with invited_by information
+      const { data, error } = await supabase
+        .from('organization_users')
+        .select(`
+          id,
+          user_id,
+          email,
+          role,
+          enhanced_role,
+          status,
+          created_at,
+          accepted_at,
+          invited_by_user_id
+        `)
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching organization members:', error);
         throw error;
       }
 
-      // Transform the data to ensure proper typing
-      const transformedData: MemberWithInviter[] = (data || []).map((member: any) => ({
-        id: member.id,
-        user_id: member.user_id,
-        email: member.email,
-        role: member.role || 'member',
-        enhanced_role: member.enhanced_role || member.role || 'member',
-        status: member.status,
-        created_at: member.created_at,
-        accepted_at: member.accepted_at,
-        invited_by: member.invited_by
-      }));
+      // Fetch invited_by user details for each member
+      const membersWithInviter = await Promise.all(
+        (data || []).map(async (member) => {
+          let invited_by = null;
+          
+          if (member.invited_by_user_id) {
+            // Try to get the inviter's email from organization_users first
+            const { data: inviterData } = await supabase
+              .from('organization_users')
+              .select('email')
+              .eq('user_id', member.invited_by_user_id)
+              .eq('organization_id', organizationId)
+              .single();
+            
+            if (inviterData) {
+              invited_by = { email: inviterData.email };
+            } else {
+              // Fallback: try to get from auth.users via admin function if needed
+              // For now, we'll just show as unknown
+              invited_by = { email: 'Unknown' };
+            }
+          }
+          
+          return {
+            ...member,
+            invited_by
+          };
+        })
+      );
 
-      console.log('Organization members fetched:', transformedData);
-      return transformedData;
+      console.log('Organization members fetched:', membersWithInviter);
+      return membersWithInviter;
     },
     enabled: !!organizationId,
     retry: 3,

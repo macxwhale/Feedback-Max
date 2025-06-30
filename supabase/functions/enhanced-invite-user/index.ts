@@ -215,7 +215,7 @@ serve(async (req: Request) => {
         });
       }
 
-      // Add existing user directly to organization with enhanced role
+      // Add existing user directly to organization with enhanced role and proper invited_by tracking
       const { error: addError } = await supabaseAdmin
         .from('organization_users')
         .insert({
@@ -273,7 +273,7 @@ serve(async (req: Request) => {
       });
     }
 
-    // Create invitation record with enhanced role
+    // Create invitation record with enhanced role and proper invited_by tracking
     const { error: inviteError } = await supabaseAdmin
       .from('user_invitations')
       .insert({
@@ -300,7 +300,7 @@ serve(async (req: Request) => {
 
     // Send invitation email using Supabase's built-in invitation system
     const baseUrl = getBaseUrl(req);
-    const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true`;
+    const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true&type=signup`;
     
     console.log('Using redirect URL:', redirectUrl);
 

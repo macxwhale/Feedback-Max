@@ -1,14 +1,16 @@
 
 import React from 'react';
 import { EnhancedMembersList } from './EnhancedMembersList';
-import { useUserManagement } from '@/hooks/useUserManagement';
+import { useUserManagementWithInvitations } from '@/hooks/useUserManagementWithInvitations';
 import { SimpleUserManagementHeader } from './SimpleUserManagementHeader';
 import { MemberStats } from './MemberStats';
 import { EnhancedInviteUserModal } from './EnhancedInviteUserModal';
+import { PendingInvitations } from './PendingInvitations';
 import { useRemoveUser } from '@/hooks/useUserInvitation';
 import { useRBAC } from '@/hooks/useRBAC';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface UserManagementProps {
   organizationId: string;
@@ -36,7 +38,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     membersLoading,
     handleUpdateRole,
     activeMembers,
-  } = useUserManagement(organizationId);
+    pendingInvitations,
+    invitationsLoading,
+    pendingInvitationsCount,
+    handleCancelInvitation,
+  } = useUserManagementWithInvitations(organizationId);
 
   const removeUserMutation = useRemoveUser();
   const { hasPermission, userRole, isLoading: rbacLoading } = useRBAC(organizationId);
@@ -88,7 +94,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({
   console.log('UserManagement rendered with:', {
     userRole,
     hasManageUsersPermission: hasPermission('manage_users'),
-    activeMembersCount: activeMembers.length
+    activeMembersCount: activeMembers.length,
+    pendingInvitationsCount
   });
 
   return (
@@ -101,16 +108,35 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       <MemberStats
         activeMembersCount={activeMembers.length}
         adminsCount={adminsCount}
-        pendingInvitationsCount={0}
+        pendingInvitationsCount={pendingInvitationsCount}
       />
 
-      <EnhancedMembersList
-        members={activeMembers as Member[]}
-        loading={membersLoading}
-        organizationId={organizationId}
-        onUpdateRole={handleRoleUpdate}
-        onRemoveMember={handleRemoveMember}
-      />
+      <Tabs defaultValue="members" className="w-full">
+        <TabsList>
+          <TabsTrigger value="members">Active Members ({activeMembers.length})</TabsTrigger>
+          <TabsTrigger value="invitations">
+            Pending Invitations ({pendingInvitationsCount})
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="members">
+          <EnhancedMembersList
+            members={activeMembers as Member[]}
+            loading={membersLoading}
+            organizationId={organizationId}
+            onUpdateRole={handleRoleUpdate}
+            onRemoveMember={handleRemoveMember}
+          />
+        </TabsContent>
+        
+        <TabsContent value="invitations">
+          <PendingInvitations
+            invitations={pendingInvitations}
+            loading={invitationsLoading}
+            onCancelInvitation={handleCancelInvitation}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

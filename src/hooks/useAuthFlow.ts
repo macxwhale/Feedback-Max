@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthWrapper";
 import { AuthService } from "@/services/authService";
+import { usePasswordReset } from "@/hooks/usePasswordReset";
 
 export function useAuthFlow() {
   const [email, setEmail] = useState("");
@@ -13,7 +14,8 @@ export function useAuthFlow() {
   const [error, setError] = useState("");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const { signIn, signUp, resetPassword, updatePassword } = useAuth();
+  const { signIn, signUp, updatePassword } = useAuth();
+  const passwordResetMutation = usePasswordReset();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -89,21 +91,14 @@ export function useAuthFlow() {
     setLoading(true);
     setError("");
     
-    const { error: resetError } = await resetPassword(email);
-    
-    if (resetError) {
-      setError(resetError.message);
+    try {
+      await passwordResetMutation.mutateAsync({ email });
+      setShowForgotPassword(false);
+    } catch (error: any) {
+      setError(error.message || 'Failed to send password reset email');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    toast({
-      title: "Password reset sent!",
-      description: "Check your email for password reset instructions.",
-    });
-    
-    setShowForgotPassword(false);
-    setLoading(false);
   };
 
   const handleNewPassword = async (newPassword: string) => {
@@ -133,7 +128,7 @@ export function useAuthFlow() {
     setEmail,
     password,
     setPassword,
-    loading,
+    loading: loading || passwordResetMutation.isPending,
     error,
     setError,
     showForgotPassword,

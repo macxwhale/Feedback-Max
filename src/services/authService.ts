@@ -43,13 +43,17 @@ export class AuthService {
 
   static async resetPassword(email: string) {
     try {
-      const redirectUrl = createAuthRedirectUrl('/auth-callback?type=recovery');
-      
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl
+      // Use the custom password reset function instead of the built-in one
+      const { data, error } = await supabase.functions.invoke('send-password-reset', {
+        body: { email }
       });
 
-      return { data, error };
+      if (error) {
+        console.error('Password reset error:', error);
+        return { data: null, error: error as AuthError };
+      }
+
+      return { data, error: null };
     } catch (error) {
       console.error('Password reset error:', error);
       return { data: null, error: error as AuthError };

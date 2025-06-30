@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -78,12 +79,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const resetPassword = async (email: string) => {
     try {
-      const redirectUrl = createAuthRedirectUrl('/auth-callback?type=recovery');
-      
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl
-      });
-      return { error };
+      // Use the AuthService which now calls our custom function
+      return await AuthService.resetPassword(email);
     } catch (error) {
       console.error('Password reset error:', error);
       return { error };

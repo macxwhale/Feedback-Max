@@ -1,6 +1,5 @@
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { OrganizationUser } from './types.ts';
 
 export const checkUserPermissions = async (
   supabaseClient: SupabaseClient,

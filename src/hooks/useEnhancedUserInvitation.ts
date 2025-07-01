@@ -22,7 +22,7 @@ import {
  * Interface for user invitation parameters
  * Following strict typing standards for better maintainability
  */
-interface InviteUserParams {
+interface InviteUserParams extends Record<string, unknown> {
   readonly email: string;
   readonly organizationId: string;
   readonly role: string;
@@ -45,7 +45,7 @@ interface InviteUserResponse {
  */
 const validateInvitationParams = (params: InviteUserParams): { isValid: boolean; errors: AppError[] } => {
   // Validate email separately for better error messaging
-  const emailValidation = validateAndSanitizeEmail(params.email);
+  const emailValidation = validateAndSanitizeEmail(params.email as string);
   if (!emailValidation.isValid) {
     return { isValid: false, errors: emailValidation.errors };
   }
@@ -173,12 +173,12 @@ export const useEnhancedInviteUser = () => {
 
       try {
         // Prepare sanitized parameters
-        const emailValidation = validateAndSanitizeEmail(params.email);
+        const emailValidation = validateAndSanitizeEmail(params.email as string);
         const sanitizedParams = {
           email: emailValidation.sanitizedEmail!,
-          organizationId: params.organizationId,
-          role: params.role,
-          enhancedRole: params.enhancedRole || params.role,
+          organizationId: params.organizationId as string,
+          role: params.role as string,
+          enhancedRole: (params.enhancedRole as string) || (params.role as string),
         };
 
         const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {

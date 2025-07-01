@@ -34,7 +34,7 @@ export interface UserInvitationService {
 /**
  * Parameters for user invitation
  */
-export interface InviteUserParams {
+export interface InviteUserParams extends Record<string, unknown> {
   readonly email: string;
   readonly organizationId: string;
   readonly role: string;
@@ -61,7 +61,7 @@ class UserInvitationServiceImpl implements UserInvitationService {
    */
   private validateInvitationParams(params: InviteUserParams) {
     // Validate email format and sanitize
-    const emailValidation = validateAndSanitizeEmail(params.email);
+    const emailValidation = validateAndSanitizeEmail(params.email as string);
     if (!emailValidation.isValid) {
       return { isValid: false, errors: emailValidation.errors, sanitizedEmail: null };
     }
@@ -185,9 +185,9 @@ class UserInvitationServiceImpl implements UserInvitationService {
       // Prepare sanitized request
       const sanitizedParams = {
         email: validation.sanitizedEmail!,
-        organizationId: params.organizationId,
-        role: params.role,
-        enhancedRole: params.enhancedRole || params.role,
+        organizationId: params.organizationId as string,
+        role: params.role as string,
+        enhancedRole: (params.enhancedRole as string) || (params.role as string),
       };
 
       const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {

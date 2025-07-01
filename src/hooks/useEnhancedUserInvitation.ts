@@ -11,6 +11,7 @@ import {
   logError,
   type ApiResponse,
   type AppError,
+  type ErrorResponse,
 } from '@/utils/errorHandler';
 import {
   validateObject,
@@ -191,7 +192,8 @@ export const useEnhancedInviteUser = () => {
         
         // Type guard to check if result is an error response
         if (!result.success) {
-          throw new Error(result.error.message);
+          const errorResponse = result as ErrorResponse;
+          throw new Error(errorResponse.error.message);
         }
 
         return result.data;

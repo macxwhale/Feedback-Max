@@ -62,13 +62,21 @@ export class PerformanceLogger {
       timestamp: endTime,
     };
 
+    // Convert metrics to LogContext format for compatibility
+    const logContext = {
+      operation: metrics.operation,
+      duration: metrics.duration,
+      timestamp: metrics.timestamp,
+      ...metrics.context,
+    };
+
     // Log based on duration thresholds
     if (duration > 1000) {
-      logger.warn('Performance: Slow operation detected', metrics);
+      logger.warn('Performance: Slow operation detected', logContext);
     } else if (duration > 500) {
-      logger.info('Performance: Operation completed', metrics);
+      logger.info('Performance: Operation completed', logContext);
     } else {
-      logger.debug('Performance: Operation completed', metrics);
+      logger.debug('Performance: Operation completed', logContext);
     }
 
     // Clean up

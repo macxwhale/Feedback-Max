@@ -36,7 +36,15 @@ export class UserInvitationService implements IUserInvitationService {
    * Validates invitation request parameters
    */
   private validateInvitationRequest(request: InviteUserRequest) {
-    const validation = validateObject(request, {
+    // Convert to Record<string, unknown> for validation compatibility
+    const requestRecord: Record<string, unknown> = {
+      organizationId: request.organizationId,
+      role: request.role,
+      email: request.email,
+      enhancedRole: request.enhancedRole,
+    };
+
+    const validation = validateObject(requestRecord, {
       organizationId: [
         VALIDATION_RULES.required('Organization ID'),
         VALIDATION_RULES.uuid('Organization ID'),
@@ -143,7 +151,7 @@ export class UserInvitationService implements IUserInvitationService {
     const validation = this.validateInvitationRequest(request);
     if (!validation.isValid) {
       const firstError = validation.errors[0];
-      logError(firstError, { request });
+      logError(firstError, { request: { ...request } });
       return createErrorResponse(firstError);
     }
 
@@ -172,7 +180,7 @@ export class UserInvitationService implements IUserInvitationService {
         error,
         'Failed to send invitation. Please try again.'
       );
-      logError(handledError, { request });
+      logError(handledError, { request: { ...request } });
       return createErrorResponse(handledError);
     }
   }
@@ -185,8 +193,13 @@ export class UserInvitationService implements IUserInvitationService {
       invitationId: request.invitationId,
     });
 
+    // Convert to Record<string, unknown> for validation compatibility
+    const requestRecord: Record<string, unknown> = {
+      invitationId: request.invitationId,
+    };
+
     // Validate invitation ID
-    const validation = validateObject(request, {
+    const validation = validateObject(requestRecord, {
       invitationId: [
         VALIDATION_RULES.required('Invitation ID'),
         VALIDATION_RULES.uuid('Invitation ID'),
@@ -195,7 +208,7 @@ export class UserInvitationService implements IUserInvitationService {
 
     if (!validation.isValid) {
       const firstError = validation.errors[0];
-      logError(firstError, { request });
+      logError(firstError, { request: { ...request } });
       return createErrorResponse(firstError);
     }
 
@@ -212,7 +225,7 @@ export class UserInvitationService implements IUserInvitationService {
           'medium',
           { supabaseError: error }
         );
-        logError(appError, { request });
+        logError(appError, { request: { ...request } });
         return createErrorResponse(appError);
       }
 
@@ -223,7 +236,7 @@ export class UserInvitationService implements IUserInvitationService {
 
     } catch (error: unknown) {
       const handledError = handleUnknownError(error, 'Failed to cancel invitation');
-      logError(handledError, { request });
+      logError(handledError, { request: { ...request } });
       return createErrorResponse(handledError);
     }
   }

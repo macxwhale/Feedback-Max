@@ -189,6 +189,7 @@ export const useEnhancedInviteUser = () => {
 
         const result = processInvitationResponse(data, error);
         
+        // Type guard to check if result is an error response
         if (!result.success) {
           throw new Error(result.error.message);
         }

@@ -1,8 +1,7 @@
 
 /**
- * User Invitation Service Layer
- * Following service layer patterns from industry best practices
- * Separates business logic from UI components
+ * User Invitation Service Implementation
+ * Implements IUserInvitationService following Domain-Driven Design principles
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -17,57 +16,27 @@ import {
 } from '@/utils/errorHandler';
 import {
   validateObject,
-  validateAndSanitizeEmail,
   VALIDATION_RULES,
 } from '@/utils/validation';
+import { logger } from '@/utils/logger';
+import type {
+  IUserInvitationService,
+  InviteUserRequest,
+  InviteUserResult,
+  CancelInvitationRequest,
+  ResendInvitationRequest,
+} from '@/domain/interfaces/IUserInvitationService';
 
 /**
- * Interface for user invitation service
- * Defines the contract for invitation operations
+ * User Invitation Service Implementation
+ * Handles the business logic for user invitations
  */
-export interface UserInvitationService {
-  inviteUser(params: InviteUserParams): Promise<ApiResponse<InviteUserResponse>>;
-  cancelInvitation(invitationId: string): Promise<ApiResponse<void>>;
-  resendInvitation(invitationId: string): Promise<ApiResponse<InviteUserResponse>>;
-}
-
-/**
- * Parameters for user invitation
- */
-export interface InviteUserParams extends Record<string, unknown> {
-  readonly email: string;
-  readonly organizationId: string;
-  readonly role: string;
-  readonly enhancedRole?: string;
-}
-
-/**
- * Response from invitation service
- */
-export interface InviteUserResponse {
-  readonly success: boolean;
-  readonly message?: string;
-  readonly type?: 'direct_add' | 'invitation_sent';
-  readonly invitationId?: string;
-}
-
-/**
- * Implementation of user invitation service
- * Follows dependency injection principles for testability
- */
-class UserInvitationServiceImpl implements UserInvitationService {
+export class UserInvitationService implements IUserInvitationService {
   /**
-   * Validates invitation parameters according to business rules
+   * Validates invitation request parameters
    */
-  private validateInvitationParams(params: InviteUserParams) {
-    // Validate email format and sanitize
-    const emailValidation = validateAndSanitizeEmail(params.email as string);
-    if (!emailValidation.isValid) {
-      return { isValid: false, errors: emailValidation.errors, sanitizedEmail: null };
-    }
-
-    // Validate other required fields
-    const validation = validateObject(params, {
+  private validateInvitationRequest(request: InviteUserRequest) {
+    const validation = validateObject(request, {
       organizationId: [
         VALIDATION_RULES.required('Organization ID'),
         VALIDATION_RULES.uuid('Organization ID'),
@@ -78,16 +47,13 @@ class UserInvitationServiceImpl implements UserInvitationService {
       ],
     });
 
-    return {
-      ...validation,
-      sanitizedEmail: emailValidation.sanitizedEmail,
-    };
+    return validation;
   }
 
   /**
    * Processes Supabase function response with proper error categorization
    */
-  private processSupabaseResponse(data: unknown, error: unknown): ApiResponse<InviteUserResponse> {
+  private processSupabaseResponse(data: unknown, error: unknown): ApiResponse<InviteUserResult> {
     if (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       
@@ -135,7 +101,7 @@ class UserInvitationServiceImpl implements UserInvitationService {
 
     // Type-safe response processing
     if (typeof data === 'object' && data !== null && 'success' in data) {
-      const response = data as InviteUserResponse;
+      const response = data as InviteUserResult;
       
       if (response.success === false) {
         // Map specific business errors
@@ -160,41 +126,41 @@ class UserInvitationServiceImpl implements UserInvitationService {
       success: true,
       message: 'Invitation processed successfully',
       type: 'invitation_sent',
-    } as InviteUserResponse);
+    } as InviteUserResult);
   }
 
   /**
    * Invites a user to an organization
    */
-  async inviteUser(params: InviteUserParams): Promise<ApiResponse<InviteUserResponse>> {
-    console.log('UserInvitationService: Processing invitation request', {
-      email: params.email,
-      organizationId: params.organizationId,
-      role: params.role,
+  async inviteUser(request: InviteUserRequest): Promise<ApiResponse<InviteUserResult>> {
+    logger.info('UserInvitationService: Processing invitation request', {
+      email: request.email,
+      organizationId: request.organizationId,
+      role: request.role,
     });
 
     // Validate input parameters
-    const validation = this.validateInvitationParams(params);
+    const validation = this.validateInvitationRequest(request);
     if (!validation.isValid) {
       const firstError = validation.errors[0];
-      logError(firstError, { params });
+      logError(firstError, { request });
       return createErrorResponse(firstError);
     }
 
     try {
-      // Prepare sanitized request
-      const sanitizedParams = {
-        email: validation.sanitizedEmail!,
-        organizationId: params.organizationId as string,
-        role: params.role as string,
-        enhancedRole: (params.enhancedRole as string) || (params.role as string),
+      // Prepare request parameters
+      const requestParams = {
+        email: request.email,
+        organizationId: request.organizationId,
+        role: request.role,
+        enhancedRole: request.enhancedRole || request.role,
       };
 
       const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {
-        body: sanitizedParams,
+        body: requestParams,
       });
 
-      console.log('UserInvitationService: Received response from edge function', {
+      logger.debug('UserInvitationService: Received response from edge function', {
         hasData: !!data,
         hasError: !!error,
       });
@@ -206,7 +172,7 @@ class UserInvitationServiceImpl implements UserInvitationService {
         error,
         'Failed to send invitation. Please try again.'
       );
-      logError(handledError, { params });
+      logError(handledError, { request });
       return createErrorResponse(handledError);
     }
   }
@@ -214,11 +180,13 @@ class UserInvitationServiceImpl implements UserInvitationService {
   /**
    * Cancels a pending invitation
    */
-  async cancelInvitation(invitationId: string): Promise<ApiResponse<void>> {
-    console.log('UserInvitationService: Cancelling invitation', { invitationId });
+  async cancelInvitation(request: CancelInvitationRequest): Promise<ApiResponse<void>> {
+    logger.info('UserInvitationService: Cancelling invitation', {
+      invitationId: request.invitationId,
+    });
 
     // Validate invitation ID
-    const validation = validateObject({ invitationId }, {
+    const validation = validateObject(request, {
       invitationId: [
         VALIDATION_RULES.required('Invitation ID'),
         VALIDATION_RULES.uuid('Invitation ID'),
@@ -227,7 +195,7 @@ class UserInvitationServiceImpl implements UserInvitationService {
 
     if (!validation.isValid) {
       const firstError = validation.errors[0];
-      logError(firstError, { invitationId });
+      logError(firstError, { request });
       return createErrorResponse(firstError);
     }
 
@@ -235,7 +203,7 @@ class UserInvitationServiceImpl implements UserInvitationService {
       const { error } = await supabase
         .from('user_invitations')
         .update({ status: 'cancelled' })
-        .eq('id', invitationId);
+        .eq('id', request.invitationId);
 
       if (error) {
         const appError = createError(
@@ -244,16 +212,18 @@ class UserInvitationServiceImpl implements UserInvitationService {
           'medium',
           { supabaseError: error }
         );
-        logError(appError, { invitationId });
+        logError(appError, { request });
         return createErrorResponse(appError);
       }
 
-      console.log('UserInvitationService: Invitation cancelled successfully', { invitationId });
+      logger.info('UserInvitationService: Invitation cancelled successfully', {
+        invitationId: request.invitationId,
+      });
       return createSuccessResponse(undefined);
 
     } catch (error: unknown) {
       const handledError = handleUnknownError(error, 'Failed to cancel invitation');
-      logError(handledError, { invitationId });
+      logError(handledError, { request });
       return createErrorResponse(handledError);
     }
   }
@@ -261,9 +231,12 @@ class UserInvitationServiceImpl implements UserInvitationService {
   /**
    * Resends a pending invitation
    */
-  async resendInvitation(invitationId: string): Promise<ApiResponse<InviteUserResponse>> {
-    // Implementation would follow similar patterns to inviteUser
-    // This is a placeholder for future implementation
+  async resendInvitation(request: ResendInvitationRequest): Promise<ApiResponse<InviteUserResult>> {
+    logger.info('UserInvitationService: Resending invitation', {
+      invitationId: request.invitationId,
+    });
+
+    // Implementation placeholder - would need to fetch invitation details and resend
     const appError = createError(
       ERROR_CODES.SYSTEM_UNKNOWN_ERROR,
       'Resend invitation feature not yet implemented',
@@ -274,15 +247,6 @@ class UserInvitationServiceImpl implements UserInvitationService {
 }
 
 /**
- * Singleton instance of the user invitation service
- * Following dependency injection patterns for better testability
+ * Default service instance
  */
-export const userInvitationService: UserInvitationService = new UserInvitationServiceImpl();
-
-/**
- * Factory function for creating service instances
- * Useful for testing with mock implementations
- */
-export const createUserInvitationService = (): UserInvitationService => {
-  return new UserInvitationServiceImpl();
-};
+export const userInvitationService = new UserInvitationService();

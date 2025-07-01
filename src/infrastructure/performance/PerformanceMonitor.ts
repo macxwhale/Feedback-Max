@@ -1,3 +1,4 @@
+
 /**
  * Performance Monitoring System
  * Comprehensive performance tracking and optimization utilities
@@ -114,7 +115,7 @@ export class PerformanceMonitor {
       { name: 'tcp-connect', value: entry.connectEnd - entry.connectStart },
       { name: 'request-response', value: entry.responseEnd - entry.requestStart },
       { name: 'dom-processing', value: entry.domComplete - entry.responseEnd },
-      { name: 'total-load', value: entry.loadEventEnd - entry.navigationStart },
+      { name: 'total-load', value: entry.loadEventEnd - entry.fetchStart },
     ];
 
     metrics.forEach((metric) => {

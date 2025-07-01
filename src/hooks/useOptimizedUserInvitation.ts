@@ -63,55 +63,6 @@ export const useOptimizedInviteUser = () => {
       }
     },
 
-    onSuccess: (data: InviteUserResult, variables: InviteUserRequest) => {
-      // Intelligent cache invalidation
-      const organizationQueries = [
-        { queryKey: ['organization-members', variables.organizationId] },
-        { queryKey: ['organization-invitations', variables.organizationId] },
-      ];
-
-      // Batch invalidate queries
-      Promise.all(
-        organizationQueries.map(({ queryKey }) =>
-          queryClient.invalidateQueries({ queryKey })
-        )
-      ).then(() => {
-        logger.debug('Cache invalidation completed', {
-          invalidatedQueries: organizationQueries.length,
-        });
-      });
-      
-      // Smart success messaging
-      const message = data.type === 'direct_add'
-        ? 'User added to organization successfully!'
-        : 'Invitation sent successfully! The user will receive an email with instructions to join.';
-      
-      toast.success(message);
-      
-      logger.info('Optimized invitation completed successfully', {
-        type: data.type,
-        message: data.message,
-        organizationId: variables.organizationId,
-      });
-    },
-
-    onError: (error: Error, variables: InviteUserRequest) => {
-      logger.error('Optimized invitation mutation failed', {
-        error: error.message,
-        variables,
-      });
-      
-      // Smart error messaging
-      const errorMessage = error.message.includes('already exists')
-        ? 'This user is already part of the organization.'
-        : error.message.includes('not found')
-        ? 'Organization not found. Please try again.'
-        : error.message || 'Failed to invite user. Please try again.';
-
-      toast.error(errorMessage);
-    },
-
-    // Optimistic update configuration
     onMutate: async (variables: InviteUserRequest) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ 
@@ -145,7 +96,44 @@ export const useOptimizedInviteUser = () => {
       return { previousInvitations };
     },
 
-    onError: (error, variables, context) => {
+    onSuccess: (data: InviteUserResult, variables: InviteUserRequest) => {
+      // Intelligent cache invalidation
+      const organizationQueries = [
+        { queryKey: ['organization-members', variables.organizationId] },
+        { queryKey: ['organization-invitations', variables.organizationId] },
+      ];
+
+      // Batch invalidate queries
+      Promise.all(
+        organizationQueries.map(({ queryKey }) =>
+          queryClient.invalidateQueries({ queryKey })
+        )
+      ).then(() => {
+        logger.debug('Cache invalidation completed', {
+          invalidatedQueries: organizationQueries.length,
+        });
+      });
+      
+      // Smart success messaging
+      const message = data.type === 'direct_add'
+        ? 'User added to organization successfully!'
+        : 'Invitation sent successfully! The user will receive an email with instructions to join.';
+      
+      toast.success(message);
+      
+      logger.info('Optimized invitation completed successfully', {
+        type: data.type,
+        message: data.message,
+        organizationId: variables.organizationId,
+      });
+    },
+
+    onError: (error: Error, variables: InviteUserRequest, context: any) => {
+      logger.error('Optimized invitation mutation failed', {
+        error: error.message,
+        variables,
+      });
+      
       // Rollback optimistic update on error
       if (context?.previousInvitations) {
         queryClient.setQueryData(
@@ -153,6 +141,15 @@ export const useOptimizedInviteUser = () => {
           context.previousInvitations
         );
       }
+      
+      // Smart error messaging
+      const errorMessage = error.message.includes('already exists')
+        ? 'This user is already part of the organization.'
+        : error.message.includes('not found')
+        ? 'Organization not found. Please try again.'
+        : error.message || 'Failed to invite user. Please try again.';
+
+      toast.error(errorMessage);
     },
   });
 };
@@ -171,9 +168,13 @@ export const useBatchInviteUsers = () => {
 
       try {
         const results = await optimizedService.inviteUsersBatch(requests);
-        const successfulResults = results
-          .filter(result => result.success)
-          .map(result => result.data as InviteUserResult);
+        const successfulResults: InviteUserResult[] = [];
+        
+        results.forEach(result => {
+          if (result.success && 'data' in result) {
+            successfulResults.push(result.data);
+          }
+        });
 
         performance.endTiming(operationId, 'batch_invite_users', {
           totalRequests: requests.length,

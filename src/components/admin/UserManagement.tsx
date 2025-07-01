@@ -6,6 +6,7 @@ import { SimpleUserManagementHeader } from './SimpleUserManagementHeader';
 import { MemberStats } from './MemberStats';
 import { EnhancedInviteUserModal } from './EnhancedInviteUserModal';
 import { PendingInvitations } from './PendingInvitations';
+import { PerformanceDashboard } from './performance/PerformanceDashboard';
 import { useRemoveUser } from '@/hooks/useUserInvitation';
 import { useRBAC } from '@/hooks/useRBAC';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -117,6 +118,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({
           <TabsTrigger value="invitations">
             Pending Invitations ({pendingInvitationsCount})
           </TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
         
         <TabsContent value="members">
@@ -135,6 +137,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({
             loading={invitationsLoading}
             onCancelInvitation={handleCancelInvitation}
           />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <PerformanceDashboard />
         </TabsContent>
       </Tabs>
     </div>

@@ -6,6 +6,7 @@
 
 import type { IUserInvitationService } from '@/domain/interfaces/IUserInvitationService';
 import { UserInvitationService } from '@/services/userInvitationService';
+import { OptimizedUserInvitationService } from '@/infrastructure/performance/OptimizedUserInvitationService';
 import { UserInvitationApplicationService } from '@/application/services/UserInvitationApplicationService';
 
 /**
@@ -34,13 +35,16 @@ export class ServiceRegistry {
    * Registers default service implementations
    */
   private registerDefaultServices(): void {
-    // Register domain services
-    this.register<IUserInvitationService>('IUserInvitationService', new UserInvitationService());
+    // Register domain services with performance optimization
+    const baseService = new UserInvitationService();
+    const optimizedService = new OptimizedUserInvitationService(baseService);
+    
+    this.register<IUserInvitationService>('IUserInvitationService', optimizedService);
     
     // Register application services
     this.register<UserInvitationApplicationService>(
       'UserInvitationApplicationService',
-      new UserInvitationApplicationService(this.resolve<IUserInvitationService>('IUserInvitationService'))
+      new UserInvitationApplicationService(optimizedService)
     );
   }
 

@@ -66,7 +66,7 @@ export const withPerformanceTracking = <P extends object>(
       endRender();
     });
 
-    return <WrappedComponent {...props} />;
+    return React.createElement(WrappedComponent, props);
   };
 
   TrackedComponent.displayName = `withPerformanceTracking(${
@@ -85,16 +85,21 @@ interface PerformanceBoundaryProps {
   fallback?: React.ComponentType<{ error: Error }>;
 }
 
+interface PerformanceBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
 export class PerformanceBoundary extends React.Component<
   PerformanceBoundaryProps,
-  { hasError: boolean; error?: Error }
+  PerformanceBoundaryState
 > {
   constructor(props: PerformanceBoundaryProps) {
     super(props);
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): PerformanceBoundaryState {
     return { hasError: true, error };
   }
 
@@ -116,14 +121,14 @@ export class PerformanceBoundary extends React.Component<
     if (this.state.hasError) {
       const FallbackComponent = this.props.fallback;
       if (FallbackComponent && this.state.error) {
-        return <FallbackComponent error={this.state.error} />;
+        return React.createElement(FallbackComponent, { error: this.state.error });
       }
       
-      return (
-        <div className="p-4 text-center text-red-600">
-          <h2>Component Error</h2>
-          <p>Something went wrong in {this.props.componentName}</p>
-        </div>
+      return React.createElement(
+        'div',
+        { className: 'p-4 text-center text-red-600' },
+        React.createElement('h2', null, 'Component Error'),
+        React.createElement('p', null, `Something went wrong in ${this.props.componentName}`)
       );
     }
 

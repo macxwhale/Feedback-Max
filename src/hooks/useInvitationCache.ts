@@ -1,7 +1,7 @@
 
 /**
- * Invitation Cache Management Hook
- * Handles cache operations and performance statistics
+ * Invitation Cache Management Hook (Updated)
+ * Uses the refactored service infrastructure
  */
 
 import { useMutation, useQuery } from '@tanstack/react-query';

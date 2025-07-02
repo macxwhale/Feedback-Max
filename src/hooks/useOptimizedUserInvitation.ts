@@ -1,7 +1,7 @@
 
 /**
- * Optimized User Invitation Hook (Refactored)
- * Composed from focused, single-responsibility hooks
+ * Optimized User Invitation Hook (Updated)
+ * Now uses the refactored service components
  */
 
 // Re-export focused hooks for direct usage
@@ -10,18 +10,24 @@ export { useBatchInvitations } from './useBatchInvitations';
 export { useInvitationCache, useInvitationPerformanceStats } from './useInvitationCache';
 export { useInvitationPerformance } from './useInvitationPerformance';
 
-// Maintain backward compatibility
+// Use proper ES6 imports instead of require
+import { useInviteUser } from './useInviteUser';
+import { useBatchInvitations } from './useBatchInvitations';
+import { useInvitationCache as useInvitationCacheHook } from './useInvitationCache';
+
+// Maintain backward compatibility with proper imports
 export const useOptimizedInviteUser = () => {
-  const { useInviteUser } = require('./useInviteUser');
   return useInviteUser();
 };
 
 export const useBatchInviteUsers = () => {
-  const { useBatchInvitations } = require('./useBatchInvitations');
   return useBatchInvitations();
 };
 
 export const useClearInvitationCache = () => {
-  const { useInvitationCache } = require('./useInvitationCache');
-  return useInvitationCache();
+  const { clearCache, isClearingCache } = useInvitationCacheHook();
+  return {
+    mutate: clearCache,
+    isPending: isClearingCache,
+  };
 };

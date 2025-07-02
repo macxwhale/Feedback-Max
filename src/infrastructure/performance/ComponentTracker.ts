@@ -4,7 +4,7 @@
  * React-specific performance tracking utilities
  */
 
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { metricsAggregator } from './MetricsAggregator';
 import { logger } from '@/utils/logger';
 

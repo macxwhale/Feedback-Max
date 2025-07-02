@@ -6,6 +6,7 @@
 
 import { logger } from '@/utils/logger';
 import { PerformanceLogger } from '@/infrastructure/logging/PerformanceLogger';
+import { createError, createErrorResponse, ERROR_CODES } from '@/utils/errorHandler';
 import type { InviteUserRequest, InviteUserResult } from '@/domain/interfaces/IUserInvitationService';
 import type { ApiResponse } from '@/utils/errorHandler';
 
@@ -117,15 +118,13 @@ export class BatchProcessingService {
       if (result.success && result.result) {
         return result.result;
       } else {
-        // Return error response format
-        return {
-          success: false,
-          error: {
-            message: result.error?.message || 'Unknown batch processing error',
-            code: 'BATCH_PROCESSING_ERROR',
-            severity: 'medium' as const
-          }
-        };
+        // Create proper error response using error handling utilities
+        const appError = createError(
+          ERROR_CODES.SYSTEM_UNKNOWN_ERROR,
+          result.error?.message || 'Unknown batch processing error',
+          'medium'
+        );
+        return createErrorResponse(appError);
       }
     });
   }

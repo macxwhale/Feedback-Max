@@ -95,7 +95,7 @@ export class InvitationValidationService {
         validation.errors.forEach(error => {
           errors.push({
             ...error,
-            context: { ...error.context, batchIndex: index }
+            details: { ...error.details, batchIndex: index }
           });
         });
       }

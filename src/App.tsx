@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { OrganizationProvider } from "@/context/OrganizationContext";
+import { DashboardProvider } from "@/context/DashboardContext";
 import { AuthProvider } from "@/components/auth/AuthWrapper";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import LoginPage from "@/components/auth/LoginPage";
@@ -68,12 +69,14 @@ function App() {
                   } 
                 />
                 
-                {/* Organization admin routes */}
+                {/* Organization admin routes - wrapped with DashboardProvider */}
                 <Route 
                   path="/admin/:slug" 
                   element={
                     <ProtectedRoute requireOrgAdmin>
-                      <Admin />
+                      <DashboardProvider>
+                        <Admin />
+                      </DashboardProvider>
                     </ProtectedRoute>
                   } 
                 />

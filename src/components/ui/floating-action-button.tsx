@@ -81,7 +81,7 @@ export const ScrollToTopFAB: React.FC<{ threshold?: number }> = ({
 
   return (
     <FloatingActionButton
-      onClick={ScrollToTop}
+      onClick={scrollToTop}
       icon={<ChevronUp className="w-6 h-6" />}
       position="bottom-right"
       className="bg-gray-800 hover:bg-gray-700"

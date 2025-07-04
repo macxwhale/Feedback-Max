@@ -8,7 +8,7 @@ import { StatsGrid } from '@/components/dashboard/StatsGrid';
 import { FloatingActionButton, ScrollToTopFAB } from '@/components/ui/floating-action-button';
 import { H1, H2, Body } from '@/components/ui/typography';
 import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
-import { getOrganizationStats } from '@/services/organizationService';
+import { getOrganizationStatsEnhanced } from '@/services/organizationQueries';
 import { Plus, Users, MessageSquare, Activity, Star, TrendingUp } from 'lucide-react';
 
 // Tab components
@@ -23,13 +23,13 @@ import { CustomerInsightsTab } from './dashboard/tabs/CustomerInsightsTab';
 
 export const OrganizationAdminDashboard: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { organization, isLoading: orgLoading } = useOrganization();
+  const { organization, loading: orgLoading } = useOrganization();
   const [activeTab, setActiveTab] = useState('overview');
   const { isMobile } = useResponsiveDesign();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['organization-stats', organization?.id],
-    queryFn: () => getOrganizationStats(organization!.id),
+    queryFn: () => getOrganizationStatsEnhanced(organization!.id),
     enabled: !!organization?.id,
   });
 

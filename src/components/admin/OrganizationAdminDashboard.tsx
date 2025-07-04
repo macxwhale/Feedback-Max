@@ -9,6 +9,7 @@ import { FloatingActionButton, ScrollToTopFAB } from '@/components/ui/floating-a
 import { H1, H2, Body } from '@/components/ui/typography';
 import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
 import { getOrganizationStatsEnhanced } from '@/services/organizationQueries';
+import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 import { OrganizationStats } from '@/types/organizationStats';
 import { Plus, Users, MessageSquare, Activity, Star, TrendingUp } from 'lucide-react';
 
@@ -38,6 +39,8 @@ export const OrganizationAdminDashboard: React.FC = () => {
     queryFn: () => getOrganizationStatsEnhanced(organization!.id),
     enabled: !!organization?.id,
   });
+
+  const { data: analyticsData, isLoading: analyticsLoading } = useAnalyticsData(organization?.id || '');
 
   if (orgLoading || !organization) {
     return <div>Loading...</div>;
@@ -128,9 +131,9 @@ export const OrganizationAdminDashboard: React.FC = () => {
                   <H2>Analytics Dashboard</H2>
                 </div>
                 <AnalyticsTable 
-                  questions={[]}
-                  categories={[]}
-                  summary={{
+                  questions={analyticsData?.questions || []}
+                  categories={analyticsData?.categories || []}
+                  summary={analyticsData?.summary || {
                     total_questions: typedStats?.total_questions ?? 0,
                     total_responses: typedStats?.total_responses ?? 0,
                     overall_avg_score: typedStats?.avg_session_score ?? 0,

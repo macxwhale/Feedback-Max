@@ -13,7 +13,7 @@ export { useInvitationPerformance } from './useInvitationPerformance';
 // Use proper ES6 imports instead of require
 import { useInviteUser } from './useInviteUser';
 import { useBatchInvitations } from './useBatchInvitations';
-import { useInvitationCache as useInvitationCacheHook } from './useInvitationCache';
+import { useInvitationCache } from './useInvitationCache';
 
 // Maintain backward compatibility with proper imports
 export const useOptimizedInviteUser = () => {
@@ -25,7 +25,7 @@ export const useBatchInviteUsers = () => {
 };
 
 export const useClearInvitationCache = () => {
-  const { clearCache, isClearingCache } = useInvitationCacheHook();
+  const { clearCache, isClearingCache } = useInvitationCache();
   return {
     mutate: clearCache,
     isPending: isClearingCache,

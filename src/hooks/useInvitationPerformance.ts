@@ -46,6 +46,7 @@ export const useInvitationPerformance = (componentName: string = 'InvitationComp
       name: metricName,
       value,
       unit: 'count',
+      timestamp: Date.now(),
       context,
     });
 

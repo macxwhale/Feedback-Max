@@ -4,7 +4,7 @@
  * Provides cache statistics and management for invitation operations
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/utils/logger';
 
 interface InvitationCacheStats {
@@ -22,17 +22,43 @@ export const useInvitationPerformanceStats = () => {
   return useQuery({
     queryKey: ['invitation-performance-stats'],
     queryFn: async (): Promise<InvitationCacheStats> => {
-      // Mock data - replace with actual cache service integration
-      return {
-        cacheSize: Math.floor(Math.random() * 100),
-        cacheHitRate: Math.random() * 100,
-        totalInvitations: Math.floor(Math.random() * 1000),
-        lastUpdated: Date.now(),
-      };
+      try {
+        // Mock data - replace with actual cache service integration
+        return {
+          cacheSize: Math.floor(Math.random() * 100),
+          cacheHitRate: Math.random() * 100,
+          totalInvitations: Math.floor(Math.random() * 1000),
+          lastUpdated: Date.now(),
+        };
+      } catch (error) {
+        logger.error('Failed to fetch invitation performance stats', { error });
+        throw error;
+      }
     },
     refetchInterval: 30000, // Refresh every 30 seconds
-    onError: (error) => {
-      logger.error('Failed to fetch invitation performance stats', { error });
+  });
+};
+
+/**
+ * Hook for managing invitation cache
+ */
+export const useInvitationCache = () => {
+  const queryClient = useQueryClient();
+
+  const clearCache = useMutation({
+    mutationFn: async () => {
+      // Mock implementation - replace with actual cache clearing logic
+      logger.info('Clearing invitation cache');
+      return Promise.resolve();
+    },
+    onSuccess: () => {
+      // Invalidate related queries after cache clear
+      queryClient.invalidateQueries({ queryKey: ['invitation-performance-stats'] });
     },
   });
+
+  return {
+    clearCache: clearCache.mutate,
+    isClearingCache: clearCache.isPending,
+  };
 };

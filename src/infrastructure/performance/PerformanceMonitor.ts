@@ -25,18 +25,8 @@ interface PerformanceSummary {
   components: ComponentMetric[];
 }
 
-interface PerformanceReport {
-  timestamp: number;
-  summary: PerformanceSummary;
-  alerts: Array<{
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    message: string;
-    metric: string;
-    value: number;
-    threshold: number;
-  }>;
-  recommendations: string[];
-}
+// Import the PerformanceReport type from PerformanceReporter to ensure consistency
+import type { PerformanceReport } from './PerformanceReporter';
 
 class PerformanceMonitorClass {
   private metrics: PerformanceMetric[] = [];
@@ -72,6 +62,7 @@ class PerformanceMonitorClass {
     return {
       timestamp: Date.now(),
       summary,
+      components: [...this.components],
       alerts,
       recommendations,
     };

@@ -132,7 +132,7 @@ export class UserService implements IUserService {
   async inviteUser(params: InviteUserParams): Promise<InviteUserResponse> {
     try {
       // Simple validation - convert params to compatible format
-      const paramsRecord = {
+      const paramsRecord: Record<string, unknown> = {
         email: params.email,
         organizationId: params.organizationId,
         role: params.role,
@@ -167,15 +167,18 @@ export class UserService implements IUserService {
         };
       }
 
-      if (data?.success) {
+      // Type guard for the response data
+      const result = data as { success?: boolean; invitation_id?: string; error?: string } | null;
+
+      if (result?.success) {
         return {
           success: true,
-          invitationId: data.invitation_id,
+          invitationId: result.invitation_id,
         };
       } else {
         return {
           success: false,
-          error: data?.error || 'Invitation failed',
+          error: result?.error || 'Invitation failed',
         };
       }
 
@@ -194,7 +197,7 @@ export class UserService implements IUserService {
   async updateUserRole(params: UpdateUserRoleParams): Promise<void> {
     try {
       // Simple validation - convert params to compatible format
-      const paramsRecord = {
+      const paramsRecord: Record<string, unknown> = {
         userId: params.userId,
         role: params.role,
         updatedBy: params.updatedBy,

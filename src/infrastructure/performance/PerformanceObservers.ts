@@ -39,7 +39,7 @@ export class PerformanceObservers {
       this.isInitialized = true;
       logger.info('Performance observers initialized');
     } catch (error) {
-      logger.error('Failed to initialize performance observers', {}, error as Error);
+      logger.error('Failed to initialize performance observers', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 

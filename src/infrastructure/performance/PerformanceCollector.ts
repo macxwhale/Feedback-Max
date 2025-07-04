@@ -1,3 +1,4 @@
+
 /**
  * Performance Data Collector
  * Handles raw performance data collection from browser APIs
@@ -55,7 +56,7 @@ export class PerformanceCollector {
         totalLoad: navigation.loadEventEnd - navigation.fetchStart,
       };
     } catch (error) {
-      logger.error('Failed to collect navigation metrics', {}, error as Error);
+      logger.error('Failed to collect navigation metrics', { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -76,7 +77,7 @@ export class PerformanceCollector {
 
       return metrics;
     } catch (error) {
-      logger.error('Failed to collect paint metrics', {}, error as Error);
+      logger.error('Failed to collect paint metrics', { error: error instanceof Error ? error.message : String(error) });
       return {};
     }
   }

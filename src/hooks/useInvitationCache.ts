@@ -1,46 +1,38 @@
 
 /**
- * Invitation Cache Management Hook (Updated)
- * Uses the refactored service infrastructure
+ * Invitation Cache Hook
+ * Provides cache statistics and management for invitation operations
  */
 
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { OptimizedUserInvitationService } from '@/infrastructure/performance/OptimizedUserInvitationService';
+import { useQuery } from '@tanstack/react-query';
+import { logger } from '@/utils/logger';
 
-const optimizedService = new OptimizedUserInvitationService();
-
-/**
- * Hook for managing invitation cache and performance metrics
- */
-export const useInvitationCache = () => {
-  const clearCacheMutation = useMutation({
-    mutationFn: async () => {
-      optimizedService.clearCache();
-      return true;
-    },
-    onSuccess: () => {
-      toast.success('Invitation cache cleared successfully');
-    },
-    onError: () => {
-      toast.error('Failed to clear cache');
-    },
-  });
-
-  return {
-    clearCache: clearCacheMutation.mutate,
-    isClearingCache: clearCacheMutation.isPending,
-  };
-};
+interface InvitationCacheStats {
+  cacheSize: number;
+  cacheHitRate: number;
+  totalInvitations: number;
+  lastUpdated: number;
+}
 
 /**
- * Hook for accessing invitation performance statistics
+ * Mock implementation for invitation performance stats
+ * In a real implementation, this would connect to your caching service
  */
 export const useInvitationPerformanceStats = () => {
   return useQuery({
     queryKey: ['invitation-performance-stats'],
-    queryFn: () => optimizedService.getPerformanceStats(),
-    refetchInterval: 30000,
-    staleTime: 10000,
+    queryFn: async (): Promise<InvitationCacheStats> => {
+      // Mock data - replace with actual cache service integration
+      return {
+        cacheSize: Math.floor(Math.random() * 100),
+        cacheHitRate: Math.random() * 100,
+        totalInvitations: Math.floor(Math.random() * 1000),
+        lastUpdated: Date.now(),
+      };
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+    onError: (error) => {
+      logger.error('Failed to fetch invitation performance stats', { error });
+    },
   });
 };

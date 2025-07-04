@@ -12,20 +12,8 @@ interface PerformanceMetric {
   context?: Record<string, unknown>;
 }
 
-interface ComponentMetric {
-  componentName: string;
-  renderTime: number;
-  rerenderCount: number;
-  timestamp: number;
-}
-
-interface PerformanceSummary {
-  summary: Record<string, number>;
-  totalMetrics: number;
-  components: ComponentMetric[];
-}
-
-// Import the PerformanceReport type from PerformanceReporter to ensure consistency
+// Import types from MetricsAggregator for consistency
+import type { MetricsSummary, ComponentMetric } from './MetricsAggregator';
 import type { PerformanceReport } from './PerformanceReporter';
 
 class PerformanceMonitorClass {
@@ -40,7 +28,7 @@ class PerformanceMonitorClass {
     this.components.push(metric);
   }
 
-  getPerformanceSummary(): PerformanceSummary {
+  getPerformanceSummary(): { summary: Record<string, number>; totalMetrics: number; components: ComponentMetric[] } {
     const summary: Record<string, number> = {};
     
     this.metrics.forEach(metric => {
@@ -55,24 +43,44 @@ class PerformanceMonitorClass {
   }
 
   generateReport(): PerformanceReport {
-    const summary = this.getPerformanceSummary();
-    const alerts = this.generateAlerts(summary);
+    // Create a proper MetricsSummary with all required properties
+    const metricsSummary: MetricsSummary = {
+      averages: {},
+      totals: {},
+      counts: {},
+      percentiles: {}
+    };
+
+    // Populate the summary from our metrics
+    this.metrics.forEach(metric => {
+      metricsSummary.totals[metric.name] = (metricsSummary.totals[metric.name] || 0) + metric.value;
+      metricsSummary.counts[metric.name] = (metricsSummary.counts[metric.name] || 0) + 1;
+    });
+
+    // Calculate averages
+    Object.keys(metricsSummary.totals).forEach(key => {
+      const total = metricsSummary.totals[key];
+      const count = metricsSummary.counts[key];
+      metricsSummary.averages[key] = count > 0 ? total / count : 0;
+    });
+
+    const alerts = this.generateAlerts(metricsSummary);
     const recommendations = this.generateRecommendations(alerts);
 
     return {
       timestamp: Date.now(),
-      summary,
+      summary: metricsSummary,
       components: [...this.components],
       alerts,
       recommendations,
     };
   }
 
-  private generateAlerts(summary: PerformanceSummary): PerformanceReport['alerts'] {
+  private generateAlerts(summary: MetricsSummary): PerformanceReport['alerts'] {
     const alerts: PerformanceReport['alerts'] = [];
 
     // Check for slow components
-    const slowComponents = summary.components.filter(c => c.renderTime > 16);
+    const slowComponents = this.components.filter(c => c.renderTime > 16);
     if (slowComponents.length > 0) {
       alerts.push({
         severity: 'medium',
@@ -84,7 +92,7 @@ class PerformanceMonitorClass {
     }
 
     // Check for long tasks
-    const longTaskTotal = summary.summary['long-task'] || 0;
+    const longTaskTotal = summary.totals['long-task'] || 0;
     if (longTaskTotal > 50) {
       alerts.push({
         severity: 'high',

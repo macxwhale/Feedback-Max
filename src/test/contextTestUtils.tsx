@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
+import { vi } from 'vitest';
 import { DashboardProvider } from '@/context/DashboardContext';
 import { OrganizationProvider } from '@/context/OrganizationContext';
 
@@ -48,7 +49,7 @@ export function renderWithProviders(
  * Helper to test context boundary errors
  */
 export function expectContextError(callback: () => void, contextName: string) {
-  const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   
   expect(callback).toThrow(
     new RegExp(`use${contextName} must be used within a ${contextName}Provider`)

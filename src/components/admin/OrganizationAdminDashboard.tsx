@@ -118,7 +118,7 @@ export const OrganizationAdminDashboard: React.FC = () => {
             <div className="bg-white rounded-lg p-6 shadow-sm border">
               <H2 className="mb-4">Trend Analysis</H2>
               <Body className="text-gray-600 mb-4">Key metrics over the selected period</Body>
-              <SessionTrendsChart organizationId={organization.id} />
+              <SessionTrendsChart isLoading={statsLoading} />
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -127,7 +127,18 @@ export const OrganizationAdminDashboard: React.FC = () => {
                 <div className="p-6 border-b">
                   <H2>Analytics Dashboard</H2>
                 </div>
-                <AnalyticsTable organizationId={organization.id} />
+                <AnalyticsTable 
+                  questions={[]}
+                  categories={[]}
+                  summary={{
+                    total_questions: typedStats?.total_questions ?? 0,
+                    total_responses: typedStats?.total_responses ?? 0,
+                    overall_avg_score: typedStats?.avg_session_score ?? 0,
+                    overall_completion_rate: typedStats?.completed_sessions && typedStats?.total_sessions 
+                      ? Math.round((typedStats.completed_sessions / typedStats.total_sessions) * 100)
+                      : 0
+                  }}
+                />
               </div>
               
               {/* Analytics Insights */}
@@ -136,7 +147,22 @@ export const OrganizationAdminDashboard: React.FC = () => {
                   <H2>Analytics Insights</H2>
                 </div>
                 <div className="p-6">
-                  <AnalyticsInsights organizationId={organization.id} />
+                  <AnalyticsInsights 
+                    stats={typedStats ? {
+                      total_questions: typedStats.total_questions,
+                      total_responses: typedStats.total_responses,
+                      total_sessions: typedStats.total_sessions,
+                      completed_sessions: typedStats.completed_sessions,
+                      active_members: typedStats.active_members,
+                      avg_session_score: typedStats.avg_session_score,
+                      growth_metrics: typedStats.growth_metrics || {
+                        sessions_this_month: 0,
+                        sessions_last_month: 0,
+                        growth_rate: null
+                      }
+                    } : undefined}
+                    isLoading={statsLoading}
+                  />
                 </div>
               </div>
             </div>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -37,14 +38,14 @@ export const OrganizationAdminDashboard: React.FC = () => {
     return <div>Loading...</div>;
   }
 
-  // Type-safe stats access with proper fallbacks
-  const typedStats = stats as OrganizationStats | null;
+  // Safe type conversion with proper fallbacks
+  const typedStats: OrganizationStats | null = stats ? (stats as unknown as OrganizationStats) : null;
 
   const dashboardStats = [
     {
       id: 'members',
       title: 'Active Members',
-      value: typedStats?.active_members || 0,
+      value: typedStats?.active_members ?? 0,
       icon: Users,
       trend: 'up' as const,
       trendValue: 12,
@@ -53,7 +54,7 @@ export const OrganizationAdminDashboard: React.FC = () => {
     {
       id: 'responses',
       title: 'Total Responses',
-      value: typedStats?.total_responses || 0,
+      value: typedStats?.total_responses ?? 0,
       icon: MessageSquare,  
       trend: 'up' as const,
       trendValue: 8,
@@ -62,14 +63,14 @@ export const OrganizationAdminDashboard: React.FC = () => {
     {
       id: 'sessions',
       title: 'Active Sessions',
-      value: typedStats?.total_sessions || 0,
+      value: typedStats?.total_sessions ?? 0,
       icon: Activity,
       color: 'purple' as const,
     },
     {
       id: 'rating',
       title: 'Avg Rating',
-      value: typedStats?.avg_session_score || 0,
+      value: typedStats?.avg_session_score ?? 0,
       format: 'rating' as const,
       icon: Star,
       color: 'orange' as const,

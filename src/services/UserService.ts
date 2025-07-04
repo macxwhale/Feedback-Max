@@ -1,59 +1,71 @@
+
 /**
  * User Service Implementation
- * Handles all user-related business logic
+ * Implements IUserService following Domain-Driven Design principles
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import type { 
-  IUserService, 
-  User, 
-  InviteUserParams, 
+import {
+  createError,
+  createErrorResponse,
+  createSuccessResponse,
+  ERROR_CODES,
+  handleUnknownError,
+  logError,
+  type ApiResponse,
+} from '@/utils/errorHandler';
+import {
+  validateObject,
+  VALIDATION_RULES,
+} from '@/utils/validation';
+import { logger } from '@/utils/logger';
+import type {
+  IUserService,
+  User,
+  InviteUserParams,
   InviteUserResponse,
   UpdateUserRoleParams,
   UserFilters,
-  PaginatedUsers
+  PaginatedUsers,
 } from '@/domain/interfaces/IUserService';
-import { errorHandler, ErrorCodes } from '@/utils/errorHandler';
-import { logger } from '@/utils/logger';
 
+/**
+ * User Service Implementation
+ * Handles user-related business logic
+ */
 export class UserService implements IUserService {
-  async getUsers(filters: UserFilters, page: number = 1, limit: number = 10): Promise<PaginatedUsers> {
-    return errorHandler.handleAsync(async () => {
+  /**
+   * Get users with filtering and pagination
+   */
+  async getUsers(filters: UserFilters, page: number, limit: number): Promise<PaginatedUsers> {
+    try {
       let query = supabase
-        .from('all_users_with_org')
+        .from('organization_users')
         .select('*', { count: 'exact' });
 
       // Apply filters
       if (filters.organizationId) {
         query = query.eq('organization_id', filters.organizationId);
       }
-      
       if (filters.role) {
         query = query.eq('role', filters.role);
       }
-      
       if (filters.isActive !== undefined) {
-        query = query.eq('is_active', filters.isActive);
+        query = query.eq('status', filters.isActive ? 'active' : 'inactive');
       }
-      
       if (filters.search) {
-        query = query.or(`email.ilike.%${filters.search}%`);
+        query = query.ilike('email', `%${filters.search}%`);
       }
 
       // Apply pagination
-      const from = (page - 1) * limit;
+      const from = page * limit;
       const to = from + limit - 1;
       query = query.range(from, to);
 
       const { data, error, count } = await query;
 
       if (error) {
-        throw errorHandler.createError(
-          ErrorCodes.SERVER_ERROR,
-          `Failed to fetch users: ${error.message}`,
-          'high',
-          { filters, page, limit }
-        );
+        throw new Error(error.message);
       }
 
       const users: User[] = (data || []).map(row => ({
@@ -62,8 +74,8 @@ export class UserService implements IUserService {
         role: row.role as User['role'],
         organizationId: row.organization_id,
         isActive: row.status === 'active',
-        createdAt: row.organization_user_created_at,
-        updatedAt: row.organization_user_created_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
       }));
 
       return {
@@ -71,30 +83,31 @@ export class UserService implements IUserService {
         total: count || 0,
         page,
         limit,
-        hasMore: (count || 0) > page * limit,
+        hasMore: (count || 0) > (page + 1) * limit,
       };
-    }, { operation: 'getUsers', filters, page, limit });
+
+    } catch (error) {
+      logger.error('Failed to get users', { filters, page, limit, error });
+      throw handleUnknownError(error, 'Failed to retrieve users');
+    }
   }
 
+  /**
+   * Get a user by ID
+   */
   async getUserById(userId: string): Promise<User | null> {
-    return errorHandler.handleAsync(async () => {
+    try {
       const { data, error } = await supabase
-        .from('all_users_with_org')
+        .from('organization_users')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle();
+        .single();
 
       if (error) {
-        throw errorHandler.createError(
-          ErrorCodes.SERVER_ERROR,
-          `Failed to fetch user: ${error.message}`,
-          'medium',
-          { userId }
-        );
-      }
-
-      if (!data) {
-        return null;
+        if (error.code === 'PGRST116') {
+          return null; // User not found
+        }
+        throw new Error(error.message);
       }
 
       return {
@@ -103,164 +116,194 @@ export class UserService implements IUserService {
         role: data.role as User['role'],
         organizationId: data.organization_id,
         isActive: data.status === 'active',
-        createdAt: data.organization_user_created_at,
-        updatedAt: data.organization_user_created_at,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
       };
-    }, { operation: 'getUserById', userId });
+
+    } catch (error) {
+      logger.error('Failed to get user by ID', { userId, error });
+      throw handleUnknownError(error, 'Failed to retrieve user');
+    }
   }
 
+  /**
+   * Invite a user to an organization
+   */
   async inviteUser(params: InviteUserParams): Promise<InviteUserResponse> {
-    return errorHandler.handleAsync(async () => {
-      logger.info('Inviting user', { email: params.email, organizationId: params.organizationId });
-
-      const { data, error } = await supabase.functions.invoke('enhanced-invite-user', {
-        body: {
-          email: params.email,
-          organization_id: params.organizationId,
-          role: params.role,
-          invited_by: params.invitedBy,
-        },
-      });
-
-      if (error) {
-        throw errorHandler.createError(
-          ErrorCodes.SERVER_ERROR,
-          `Failed to invite user: ${error.message}`,
-          'high',
-          params as Record<string, unknown>
-        );
-      }
-
-      return {
-        success: data?.success || false,
-        invitationId: data?.invitation_id,
-        error: data?.error,
-      };
-    }, { operation: 'inviteUser', email: params.email });
-  }
-
-  async updateUserRole(params: UpdateUserRoleParams): Promise<void> {
-    return errorHandler.handleAsync(async () => {
-      // Use Edge Function for role updates to maintain proper permissions
-      const { error } = await supabase.functions.invoke('system-user-management', {
-        body: {
-          action: 'update_role',
-          user_id: params.userId,
-          role: params.role,
-          updated_by: params.updatedBy,
-        },
-      });
-
-      if (error) {
-        throw errorHandler.createError(
-          ErrorCodes.SERVER_ERROR,
-          `Failed to update user role: ${error.message}`,
-          'high',
-          params as Record<string, unknown>
-        );
-      }
-
-      logger.info('User role updated', { 
-        userId: params.userId, 
+    try {
+      // Simple validation - convert params to compatible format
+      const paramsRecord = {
+        email: params.email,
+        organizationId: params.organizationId,
         role: params.role,
-        updatedBy: params.updatedBy 
+        invitedBy: params.invitedBy,
+      };
+
+      const validation = validateObject(paramsRecord, {
+        email: [VALIDATION_RULES.required('Email'), VALIDATION_RULES.email()],
+        organizationId: [VALIDATION_RULES.required('Organization ID')],
+        role: [VALIDATION_RULES.required('Role')],
+        invitedBy: [VALIDATION_RULES.required('Invited By')],
       });
-    }, { operation: 'updateUserRole', ...params });
+
+      if (!validation.isValid) {
+        return {
+          success: false,
+          error: validation.errors[0]?.message || 'Validation failed',
+        };
+      }
+
+      // Call the database function
+      const { data, error } = await supabase.rpc('invite_user_to_organization', {
+        p_email: params.email,
+        p_organization_id: params.organizationId,
+        p_role: params.role,
+      });
+
+      if (error) {
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+
+      if (data?.success) {
+        return {
+          success: true,
+          invitationId: data.invitation_id,
+        };
+      } else {
+        return {
+          success: false,
+          error: data?.error || 'Invitation failed',
+        };
+      }
+
+    } catch (error) {
+      logger.error('Failed to invite user', { params, error });
+      return {
+        success: false,
+        error: 'Failed to invite user. Please try again.',
+      };
+    }
   }
 
+  /**
+   * Update user role
+   */
+  async updateUserRole(params: UpdateUserRoleParams): Promise<void> {
+    try {
+      // Simple validation - convert params to compatible format
+      const paramsRecord = {
+        userId: params.userId,
+        role: params.role,
+        updatedBy: params.updatedBy,
+      };
+
+      const validation = validateObject(paramsRecord, {
+        userId: [VALIDATION_RULES.required('User ID')],
+        role: [VALIDATION_RULES.required('Role')],
+        updatedBy: [VALIDATION_RULES.required('Updated By')],
+      });
+
+      if (!validation.isValid) {
+        throw createError(ERROR_CODES.VALIDATION_ERROR, validation.errors[0]?.message || 'Validation failed');
+      }
+
+      const { error } = await supabase
+        .from('organization_users')
+        .update({ role: params.role })
+        .eq('user_id', params.userId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+    } catch (error) {
+      logger.error('Failed to update user role', { params, error });
+      throw handleUnknownError(error, 'Failed to update user role');
+    }
+  }
+
+  /**
+   * Deactivate a user
+   */
   async deactivateUser(userId: string, deactivatedBy: string): Promise<void> {
-    return errorHandler.handleAsync(async () => {
-      const { error } = await supabase.functions.invoke('system-user-management', {
-        body: {
-          action: 'deactivate_user',
-          user_id: userId,
-          deactivated_by: deactivatedBy,
-        },
-      });
+    try {
+      const { error } = await supabase
+        .from('organization_users')
+        .update({ status: 'inactive' })
+        .eq('user_id', userId);
 
       if (error) {
-        throw errorHandler.createError(
-          ErrorCodes.SERVER_ERROR,
-          `Failed to deactivate user: ${error.message}`,
-          'high',
-          { userId, deactivatedBy }
-        );
+        throw new Error(error.message);
       }
 
-      logger.info('User deactivated', { userId, deactivatedBy });
-    }, { operation: 'deactivateUser', userId, deactivatedBy });
+    } catch (error) {
+      logger.error('Failed to deactivate user', { userId, deactivatedBy, error });
+      throw handleUnknownError(error, 'Failed to deactivate user');
+    }
   }
 
+  /**
+   * Reactivate a user
+   */
   async reactivateUser(userId: string, reactivatedBy: string): Promise<void> {
-    return errorHandler.handleAsync(async () => {
-      const { error } = await supabase.functions.invoke('system-user-management', {
-        body: {
-          action: 'reactivate_user',
-          user_id: userId,
-          reactivated_by: reactivatedBy,
-        },
-      });
+    try {
+      const { error } = await supabase
+        .from('organization_users')
+        .update({ status: 'active' })
+        .eq('user_id', userId);
 
       if (error) {
-        throw errorHandler.createError(
-          ErrorCodes.SERVER_ERROR,
-          `Failed to reactivate user: ${error.message}`,
-          'high',
-          { userId, reactivatedBy }
-        );
+        throw new Error(error.message);
       }
 
-      logger.info('User reactivated', { userId, reactivatedBy });
-    }, { operation: 'reactivateUser', userId, reactivatedBy });
+    } catch (error) {
+      logger.error('Failed to reactivate user', { userId, reactivatedBy, error });
+      throw handleUnknownError(error, 'Failed to reactivate user');
+    }
   }
 
+  /**
+   * Get users by organization
+   */
   async getUsersByOrganization(organizationId: string): Promise<User[]> {
-    return errorHandler.handleAsync(async () => {
-      const { data, error } = await supabase
-        .from('all_users_with_org')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .eq('status', 'active');
-
-      if (error) {
-        throw errorHandler.createError(
-          ErrorCodes.SERVER_ERROR,
-          `Failed to fetch organization users: ${error.message}`,
-          'medium',
-          { organizationId }
-        );
-      }
-
-      return (data || []).map(row => ({
-        id: row.user_id,
-        email: row.email,
-        role: row.role as User['role'],
-        organizationId: row.organization_id,
-        isActive: row.status === 'active',
-        createdAt: row.organization_user_created_at,
-        updatedAt: row.organization_user_created_at,
-      }));
-    }, { operation: 'getUsersByOrganization', organizationId });
+    const result = await this.getUsers({ organizationId }, 0, 1000);
+    return result.users;
   }
 
+  /**
+   * Check if user has permission
+   */
   async hasPermission(userId: string, permission: string): Promise<boolean> {
-    return errorHandler.handleAsync(async () => {
-      // Get user's role and check permissions
+    try {
+      // This is a simplified implementation
+      // In a real application, you'd check against a permissions system
       const user = await this.getUserById(userId);
+      
       if (!user) {
         return false;
       }
 
-      // Define permission matrix
-      const permissions = {
-        super_admin: ['*'], // All permissions
-        org_admin: ['manage_users', 'view_analytics', 'manage_settings'],
-        member: ['view_analytics'],
-        viewer: ['view_analytics'],
-      };
+      // Basic role-based permissions
+      switch (permission) {
+        case 'manage_users':
+          return ['super_admin', 'org_admin'].includes(user.role);
+        case 'view_users':
+          return ['super_admin', 'org_admin', 'member'].includes(user.role);
+        default:
+          return false;
+      }
 
-      const userPermissions = permissions[user.role] || [];
-      return userPermissions.includes('*') || userPermissions.includes(permission);
-    }, { operation: 'hasPermission', userId, permission });
+    } catch (error) {
+      logger.error('Failed to check user permission', { userId, permission, error });
+      return false;
+    }
   }
 }
+
+/**
+ * Default service instance
+ */
+export const userService = new UserService();

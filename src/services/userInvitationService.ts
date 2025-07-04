@@ -13,6 +13,7 @@ import {
   handleUnknownError,
   logError,
   type ApiResponse,
+  type AppError,
 } from '@/utils/errorHandler';
 import {
   validateObject,
@@ -72,7 +73,7 @@ export class UserInvitationService implements IUserInvitationService {
           'Network connection failed. Please check your internet connection.',
           'high'
         );
-        logError(appError, { originalError: errorMessage });
+        logError('Network error in invitation service', { originalError: errorMessage });
         return createErrorResponse(appError);
       }
       
@@ -87,13 +88,13 @@ export class UserInvitationService implements IUserInvitationService {
           message,
           'high'
         );
-        logError(appError, { originalError: errorMessage });
+        logError('Database error in invitation service', { originalError: errorMessage });
         return createErrorResponse(appError);
       }
       
       // Generic error handling
       const unknownError = handleUnknownError(error, 'Failed to process invitation');
-      logError(unknownError);
+      logError('Unknown error in invitation process');
       return createErrorResponse(unknownError);
     }
 
@@ -103,7 +104,7 @@ export class UserInvitationService implements IUserInvitationService {
         'No response received from invitation service',
         'high'
       );
-      logError(appError);
+      logError('No data received from invitation service');
       return createErrorResponse(appError);
     }
 
@@ -122,7 +123,7 @@ export class UserInvitationService implements IUserInvitationService {
           response.message || 'Invitation failed',
           'medium'
         );
-        logError(appError, { response });
+        logError('Business logic error in invitation', { response });
         return createErrorResponse(appError);
       }
 
@@ -151,7 +152,7 @@ export class UserInvitationService implements IUserInvitationService {
     const validation = this.validateInvitationRequest(request);
     if (!validation.isValid) {
       const firstError = validation.errors[0];
-      logError(firstError, { request: { ...request } });
+      logError('Validation failed for invitation request', { ...request });
       return createErrorResponse(firstError);
     }
 
@@ -180,7 +181,7 @@ export class UserInvitationService implements IUserInvitationService {
         error,
         'Failed to send invitation. Please try again.'
       );
-      logError(handledError, { request: { ...request } });
+      logError('Exception in invitation service', { ...request });
       return createErrorResponse(handledError);
     }
   }
@@ -208,7 +209,7 @@ export class UserInvitationService implements IUserInvitationService {
 
     if (!validation.isValid) {
       const firstError = validation.errors[0];
-      logError(firstError, { request: { ...request } });
+      logError('Validation failed for cancel invitation', { ...request });
       return createErrorResponse(firstError);
     }
 
@@ -225,7 +226,7 @@ export class UserInvitationService implements IUserInvitationService {
           'medium',
           { supabaseError: error }
         );
-        logError(appError, { request: { ...request } });
+        logError('Database error cancelling invitation', { ...request });
         return createErrorResponse(appError);
       }
 
@@ -236,7 +237,7 @@ export class UserInvitationService implements IUserInvitationService {
 
     } catch (error: unknown) {
       const handledError = handleUnknownError(error, 'Failed to cancel invitation');
-      logError(handledError, { request: { ...request } });
+      logError('Exception cancelling invitation', { ...request });
       return createErrorResponse(handledError);
     }
   }

@@ -1,105 +1,98 @@
 
 /**
  * Invitation Cache Service
- * Handles caching logic with TTL management and cleanup
+ * Simple in-memory cache for invitation operations
  */
-
-import { logger } from '@/utils/logger';
-import { performanceMonitor } from '@/infrastructure/performance/PerformanceMonitor';
 
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
-  ttl: number;
+  expiresAt: number;
 }
 
-/**
- * Dedicated cache management service for invitations
- */
+interface CacheStats {
+  size: number;
+  hitRate: number;
+  hits: number;
+  misses: number;
+}
+
 export class InvitationCacheService {
-  private cache = new Map<string, CacheEntry<any>>();
+  private cache = new Map<string, CacheEntry<unknown>>();
+  private stats: CacheStats = {
+    size: 0,
+    hitRate: 0,
+    hits: 0,
+    misses: 0,
+  };
   private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
-  private readonly MAX_CACHE_SIZE = 100;
 
-  /**
-   * Generate cache key from operation and parameters
-   */
   getCacheKey(operation: string, params: Record<string, unknown>): string {
-    return `${operation}:${JSON.stringify(params)}`;
+    const sortedParams = Object.keys(params)
+      .sort()
+      .map(key => `${key}:${JSON.stringify(params[key])}`)
+      .join('|');
+    return `${operation}:${sortedParams}`;
   }
 
-  /**
-   * Check if cache entry is still valid
-   */
-  private isValidEntry<T>(entry: CacheEntry<T>): boolean {
-    return Date.now() - entry.timestamp < entry.ttl;
-  }
-
-  /**
-   * Set cache entry with optional TTL
-   */
-  set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
-    this.cache.set(key, { data, timestamp: Date.now(), ttl });
-    
-    if (this.cache.size > this.MAX_CACHE_SIZE) {
-      this.cleanup();
-    }
-  }
-
-  /**
-   * Get cache entry if valid
-   */
   get<T>(key: string): T | null {
     const entry = this.cache.get(key);
-    if (!entry || !this.isValidEntry(entry)) {
-      this.cache.delete(key);
+    
+    if (!entry) {
+      this.stats.misses++;
+      this.updateHitRate();
       return null;
     }
-    return entry.data;
+
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      this.stats.misses++;
+      this.updateHitRate();
+      return null;
+    }
+
+    this.stats.hits++;
+    this.updateHitRate();
+    return entry.data as T;
   }
 
-  /**
-   * Remove expired entries
-   */
-  cleanup(): void {
-    const expiredKeys: string[] = [];
-    
-    this.cache.forEach((entry, key) => {
-      if (!this.isValidEntry(entry)) {
-        expiredKeys.push(key);
-      }
-    });
-    
-    expiredKeys.forEach(key => this.cache.delete(key));
-    
-    logger.debug('Cache cleanup completed', {
-      expiredEntries: expiredKeys.length,
-      remainingEntries: this.cache.size,
-    });
+  set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
+    const entry: CacheEntry<T> = {
+      data,
+      timestamp: Date.now(),
+      expiresAt: Date.now() + ttl,
+    };
+
+    this.cache.set(key, entry);
+    this.stats.size = this.cache.size;
   }
 
-  /**
-   * Clear all cache entries
-   */
   clear(): void {
     this.cache.clear();
-    logger.info('Invitation cache cleared');
+    this.stats = {
+      size: 0,
+      hitRate: 0,
+      hits: 0,
+      misses: 0,
+    };
   }
 
-  /**
-   * Get cache statistics
-   */
-  getStats(): {
-    size: number;
-    hitRate: number;
-  } {
-    const summary = performanceMonitor.getPerformanceSummary();
-    const cacheHits = summary.summary['invite_user_cache_hit'] || 0;
-    const totalProcessed = summary.summary['invite_user_processed'] || 0;
-    
-    return {
-      size: this.cache.size,
-      hitRate: totalProcessed > 0 ? (cacheHits / (cacheHits + totalProcessed)) * 100 : 0,
-    };
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now > entry.expiresAt) {
+        this.cache.delete(key);
+      }
+    }
+    this.stats.size = this.cache.size;
+  }
+
+  getStats(): CacheStats {
+    return { ...this.stats };
+  }
+
+  private updateHitRate(): void {
+    const total = this.stats.hits + this.stats.misses;
+    this.stats.hitRate = total > 0 ? this.stats.hits / total : 0;
   }
 }

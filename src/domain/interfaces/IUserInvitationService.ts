@@ -1,56 +1,46 @@
 
 /**
  * User Invitation Service Interface
- * Defines the contract for user invitation operations following DDD principles
+ * Defines the contract for user invitation operations
  */
 
 import type { ApiResponse } from '@/utils/errorHandler';
 
 export interface InviteUserRequest {
-  readonly email: string;
-  readonly organizationId: string;
-  readonly role: string;
-  readonly enhancedRole?: string;
+  email: string;
+  organizationId: string;
+  role: string;
+  enhancedRole?: string;
 }
 
 export interface InviteUserResult {
-  readonly success: boolean;
-  readonly message?: string;
-  readonly type?: 'direct_add' | 'invitation_sent';
-  readonly invitationId?: string;
+  success: boolean;
+  message?: string;
+  type?: 'direct_add' | 'invitation_sent';
+  invitation_id?: string;
 }
 
 export interface CancelInvitationRequest {
-  readonly invitationId: string;
+  invitationId: string;
 }
 
 export interface ResendInvitationRequest {
-  readonly invitationId: string;
+  invitationId: string;
 }
 
-/**
- * User Invitation Service Contract
- * Following interface segregation principle
- */
 export interface IUserInvitationService {
   /**
-   * Invites a user to an organization
-   * @param request - The invitation request
-   * @returns Promise with the invitation result
+   * Invite a user to an organization
    */
   inviteUser(request: InviteUserRequest): Promise<ApiResponse<InviteUserResult>>;
 
   /**
-   * Cancels a pending invitation
-   * @param request - The cancellation request
-   * @returns Promise with the cancellation result
+   * Cancel a pending invitation
    */
   cancelInvitation(request: CancelInvitationRequest): Promise<ApiResponse<void>>;
 
   /**
-   * Resends a pending invitation
-   * @param request - The resend request
-   * @returns Promise with the resend result
+   * Resend a pending invitation
    */
   resendInvitation(request: ResendInvitationRequest): Promise<ApiResponse<InviteUserResult>>;
 }

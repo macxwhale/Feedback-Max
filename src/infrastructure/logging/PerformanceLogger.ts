@@ -1,119 +1,55 @@
 
 /**
  * Performance Logger
- * Structured performance monitoring and logging
+ * Tracks timing and performance metrics
  */
 
-import { logger } from '@/utils/logger';
-
-export interface PerformanceMetrics {
-  operation: string;
-  duration: number;
-  context?: Record<string, unknown>;
-  timestamp: number;
+interface PerformanceMetric {
+  operationId: string;
+  operationType: string;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  metadata?: Record<string, unknown>;
 }
 
-export class PerformanceLogger {
-  private static timings: Map<string, number> = new Map();
+class PerformanceLoggerClass {
+  private metrics = new Map<string, PerformanceMetric>();
 
-  /**
-   * Starts timing for an operation
-   */
-  public static startTiming(operationId: string, operation: string): void {
-    const startTime = performance.now();
-    this.timings.set(operationId, startTime);
-    
-    logger.debug('Performance: Operation started', {
+  startTiming(operationId: string, operationType: string): void {
+    this.metrics.set(operationId, {
       operationId,
-      operation,
-      startTime,
+      operationType,
+      startTime: performance.now(),
     });
   }
 
-  /**
-   * Ends timing for an operation and logs metrics
-   */
-  public static endTiming(
-    operationId: string, 
-    operation: string, 
-    context?: Record<string, unknown>
-  ): PerformanceMetrics {
-    const endTime = performance.now();
-    const startTime = this.timings.get(operationId);
-    
-    if (!startTime) {
-      logger.warn('Performance: No start time found for operation', {
-        operationId,
-        operation,
+  endTiming(operationId: string, operationType: string, metadata?: Record<string, unknown>): void {
+    const metric = this.metrics.get(operationId);
+    if (metric) {
+      const endTime = performance.now();
+      const duration = endTime - metric.startTime;
+      
+      this.metrics.set(operationId, {
+        ...metric,
+        endTime,
+        duration,
+        metadata,
       });
-      return {
-        operation,
-        duration: 0,
-        context,
-        timestamp: endTime,
-      };
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Performance: ${operationType} took ${duration.toFixed(2)}ms`, metadata);
+      }
     }
-
-    const duration = endTime - startTime;
-    const metrics: PerformanceMetrics = {
-      operation,
-      duration,
-      context,
-      timestamp: endTime,
-    };
-
-    // Convert metrics to LogContext format for compatibility
-    const logContext = {
-      operation: metrics.operation,
-      duration: metrics.duration,
-      timestamp: metrics.timestamp,
-      ...metrics.context,
-    };
-
-    // Log based on duration thresholds
-    if (duration > 1000) {
-      logger.warn('Performance: Slow operation detected', logContext);
-    } else if (duration > 500) {
-      logger.info('Performance: Operation completed', logContext);
-    } else {
-      logger.debug('Performance: Operation completed', logContext);
-    }
-
-    // Clean up
-    this.timings.delete(operationId);
-
-    return metrics;
   }
 
-  /**
-   * Decorator for timing functions
-   */
-  public static timed<T extends (...args: any[]) => any>(
-    operation: string,
-    fn: T,
-    context?: Record<string, unknown>
-  ): T {
-    return ((...args: Parameters<T>) => {
-      const operationId = `${operation}_${Date.now()}_${Math.random()}`;
-      
-      PerformanceLogger.startTiming(operationId, operation);
-      
-      try {
-        const result = fn(...args);
-        
-        // Handle both sync and async functions
-        if (result && typeof result.then === 'function') {
-          return result.finally(() => {
-            PerformanceLogger.endTiming(operationId, operation, context);
-          });
-        } else {
-          PerformanceLogger.endTiming(operationId, operation, context);
-          return result;
-        }
-      } catch (error) {
-        PerformanceLogger.endTiming(operationId, operation, { ...context, error: true });
-        throw error;
-      }
-    }) as T;
+  getMetrics(): PerformanceMetric[] {
+    return Array.from(this.metrics.values());
+  }
+
+  clearMetrics(): void {
+    this.metrics.clear();
   }
 }
+
+export const PerformanceLogger = new PerformanceLoggerClass();

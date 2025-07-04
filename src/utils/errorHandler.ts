@@ -1,3 +1,4 @@
+
 /**
  * Centralized Error Handler
  * Provides consistent error handling patterns across the application
@@ -9,6 +10,7 @@ export interface AppError {
   context?: Record<string, unknown>;
   timestamp: number;
   severity: 'low' | 'medium' | 'high' | 'critical';
+  details?: Record<string, unknown>;
 }
 
 export interface ErrorReportingConfig {
@@ -83,6 +85,7 @@ export class ErrorHandler {
       context,
       timestamp: Date.now(),
       severity,
+      details: context,
     };
   }
 
@@ -94,6 +97,7 @@ export class ErrorHandler {
       return {
         ...error,
         context: { ...error.context, ...context },
+        details: { ...error.details, ...context },
       };
     }
 
@@ -103,6 +107,7 @@ export class ErrorHandler {
       context,
       timestamp: Date.now(),
       severity: 'medium',
+      details: context,
     };
   }
 
@@ -139,28 +144,28 @@ export const errorHandler = ErrorHandler.getInstance();
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
-  error?: string;
+  error?: AppError;
   message?: string;
 }
 
 export interface ErrorResponse {
   success: false;
-  error: string;
+  error: AppError;
   code?: string;
 }
 
 /**
  * Helper functions for backward compatibility
  */
-export const createError = (code: string, message: string, details?: any): AppError => {
-  return errorHandler.createError(code, message, 'medium', details);
+export const createError = (code: string, message: string, severity: AppError['severity'] = 'medium', details?: any): AppError => {
+  return errorHandler.createError(code, message, severity, details);
 };
 
-export const createErrorResponse = (error: string, code?: string): ErrorResponse => {
+export const createErrorResponse = (error: AppError): ErrorResponse => {
   return {
     success: false,
     error,
-    code,
+    code: error.code,
   };
 };
 
@@ -171,19 +176,17 @@ export const createSuccessResponse = <T>(data: T): ApiResponse<T> => {
   };
 };
 
-export const handleUnknownError = (error: unknown): AppError => {
+export const handleUnknownError = (error: unknown, defaultMessage?: string): AppError => {
   if (error instanceof Error) {
     return errorHandler.handleError(error);
   }
-  return errorHandler.createError('UNKNOWN_ERROR', 'An unknown error occurred');
+  return errorHandler.createError('UNKNOWN_ERROR', defaultMessage || 'An unknown error occurred');
 };
 
-export const logError = (error: AppError): void => {
-  console.error('Error:', error);
+export const logError = (message: string, context?: Record<string, unknown>, error?: Error): void => {
+  const appError = error ? errorHandler.handleError(error, context) : createError('LOG_ERROR', message, 'low', context);
+  console.error(message, appError);
 };
-
-// Legacy exports for backward compatibility
-export const ERROR_CODES = ErrorCodes;
 
 /**
  * Error boundary helpers
@@ -202,16 +205,39 @@ export const formatErrorForDisplay = (error: AppError): string => {
 };
 
 /**
- * Common error types
+ * Common error types - Extended with all needed codes
  */
 export const ErrorCodes = {
+  // Network errors
   NETWORK_ERROR: 'NETWORK_ERROR',
+  SYSTEM_NETWORK_ERROR: 'SYSTEM_NETWORK_ERROR',
+  
+  // Validation errors
   VALIDATION_ERROR: 'VALIDATION_ERROR',
+  VALIDATION_REQUIRED_FIELD: 'VALIDATION_REQUIRED_FIELD',
+  VALIDATION_INVALID_EMAIL: 'VALIDATION_INVALID_EMAIL',
+  VALIDATION_INVALID_FORMAT: 'VALIDATION_INVALID_FORMAT',
+  VALIDATION_INVALID_INPUT: 'VALIDATION_INVALID_INPUT',
+  
+  // Authentication & Authorization
   AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR',
   AUTHORIZATION_ERROR: 'AUTHORIZATION_ERROR',
+  
+  // System errors
+  SYSTEM_ERROR: 'SYSTEM_ERROR',
+  SYSTEM_DATABASE_ERROR: 'SYSTEM_DATABASE_ERROR',
+  SYSTEM_UNKNOWN_ERROR: 'SYSTEM_UNKNOWN_ERROR',
+  
+  // Business logic errors
+  BUSINESS_USER_ALREADY_EXISTS: 'BUSINESS_USER_ALREADY_EXISTS',
+  BUSINESS_ORGANIZATION_NOT_FOUND: 'BUSINESS_ORGANIZATION_NOT_FOUND',
+  
+  // Generic errors
   NOT_FOUND: 'NOT_FOUND',
   SERVER_ERROR: 'SERVER_ERROR',
   CLIENT_ERROR: 'CLIENT_ERROR',
 } as const;
 
 export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes];
+
+export const ERROR_CODES = ErrorCodes;

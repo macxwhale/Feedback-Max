@@ -10,7 +10,7 @@ import { logger } from '@/utils/logger';
 import { usePerformanceTracking } from '@/infrastructure/performance/PerformanceMonitor';
 import { OptimizedUserInvitationService } from '@/infrastructure/performance/OptimizedUserInvitationService';
 import type { InviteUserRequest, InviteUserResult } from '@/domain/interfaces/IUserInvitationService';
-import type { ErrorResponse } from '@/utils/errorHandler';
+import type { ApiResponse } from '@/utils/errorHandler';
 
 const optimizedService = new OptimizedUserInvitationService();
 
@@ -36,12 +36,12 @@ export const useInviteUser = () => {
         const result = await optimizedService.inviteUser(params);
         
         if (!result.success) {
-          const errorResponse = result as ErrorResponse;
-          throw new Error(errorResponse.error.message);
+          const errorResponse = result as ApiResponse<never>;
+          throw new Error(errorResponse.error?.message || 'Invitation failed');
         }
 
         performance.endTiming(operationId, 'invite_user_mutation', { success: true });
-        return result.data;
+        return result.data!;
         
       } catch (error: unknown) {
         performance.endTiming(operationId, 'invite_user_mutation', { success: false });

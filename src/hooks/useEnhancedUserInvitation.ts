@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 import { userInvitationApplicationService } from '@/application/services/UserInvitationApplicationService';
 import type { InviteUserRequest, InviteUserResult } from '@/domain/interfaces/IUserInvitationService';
-import type { ErrorResponse } from '@/utils/errorHandler';
+import type { ApiResponse } from '@/utils/errorHandler';
 
 /**
  * Enhanced user invitation hook with comprehensive error handling
@@ -32,11 +32,11 @@ export const useEnhancedInviteUser = () => {
         
         // Type guard to check if result is an error response
         if (!result.success) {
-          const errorResponse = result as ErrorResponse;
-          throw new Error(errorResponse.error.message);
+          const errorResponse = result as ApiResponse<never>;
+          throw new Error(errorResponse.error?.message || 'Invitation failed');
         }
 
-        return result.data;
+        return result.data!;
         
       } catch (error: unknown) {
         logger.error('useEnhancedInviteUser: Invitation failed', {
@@ -99,8 +99,8 @@ export const useEnhancedCancelInvitation = () => {
       const result = await userInvitationApplicationService.cancelInvitation(invitationId);
       
       if (!result.success) {
-        const errorResponse = result as ErrorResponse;
-        throw new Error(errorResponse.error.message);
+        const errorResponse = result as ApiResponse<never>;
+        throw new Error(errorResponse.error?.message || 'Failed to cancel invitation');
       }
     },
 

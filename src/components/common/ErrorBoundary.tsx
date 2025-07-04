@@ -53,7 +53,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Log the error for monitoring
     const appError = createError(
-      ERROR_CODES.SYSTEM_UNKNOWN_ERROR,
+      ERROR_CODES.CLIENT_ERROR,
       error.message,
       'critical',
       {
@@ -65,7 +65,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     logError('React Error Boundary caught an error', {
       error: appError,
       errorInfo,
-    }, error);
+    });
 
     // Update state with error info
     this.setState({ errorInfo });

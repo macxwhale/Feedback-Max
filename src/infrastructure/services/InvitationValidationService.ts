@@ -5,7 +5,7 @@
  */
 
 import { validateObject, VALIDATION_RULES } from '@/utils/validation';
-import { createError, ERROR_CODES } from '@/utils/errorHandler';
+import { createError, ERROR_CODES, type AppError } from '@/utils/errorHandler';
 import type { InviteUserRequest, CancelInvitationRequest } from '@/domain/interfaces/IUserInvitationService';
 
 /**
@@ -65,7 +65,7 @@ export class InvitationValidationService {
         isValid: false,
         errors: [
           createError(
-            ERROR_CODES.VALIDATION_INVALID_INPUT,
+            ERROR_CODES.VALIDATION_ERROR,
             'Batch requests must be a non-empty array',
             'medium'
           )
@@ -79,7 +79,7 @@ export class InvitationValidationService {
         isValid: false,
         errors: [
           createError(
-            ERROR_CODES.VALIDATION_INVALID_INPUT,
+            ERROR_CODES.VALIDATION_ERROR,
             `Batch size cannot exceed ${MAX_BATCH_SIZE} requests`,
             'medium'
           )
@@ -88,14 +88,14 @@ export class InvitationValidationService {
     }
 
     // Validate each request in the batch
-    const errors: any[] = [];
+    const errors: AppError[] = [];
     requests.forEach((request, index) => {
       const validation = this.validateInvitationRequest(request);
       if (!validation.isValid) {
         validation.errors.forEach(error => {
           errors.push({
             ...error,
-            details: { ...error.details, batchIndex: index }
+            context: { ...error.context, batchIndex: index }
           });
         });
       }

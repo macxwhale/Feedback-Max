@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +8,7 @@ import { FloatingActionButton, ScrollToTopFAB } from '@/components/ui/floating-a
 import { H1, H2, Body } from '@/components/ui/typography';
 import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
 import { getOrganizationStatsEnhanced } from '@/services/organizationQueries';
+import { OrganizationStats } from '@/types/organizationStats';
 import { Plus, Users, MessageSquare, Activity, Star, TrendingUp } from 'lucide-react';
 
 // Tab components
@@ -37,11 +37,14 @@ export const OrganizationAdminDashboard: React.FC = () => {
     return <div>Loading...</div>;
   }
 
+  // Type-safe stats access with proper fallbacks
+  const typedStats = stats as OrganizationStats | null;
+
   const dashboardStats = [
     {
       id: 'members',
       title: 'Active Members',
-      value: stats?.active_members || 0,
+      value: typedStats?.active_members || 0,
       icon: Users,
       trend: 'up' as const,
       trendValue: 12,
@@ -50,7 +53,7 @@ export const OrganizationAdminDashboard: React.FC = () => {
     {
       id: 'responses',
       title: 'Total Responses',
-      value: stats?.total_responses || 0,
+      value: typedStats?.total_responses || 0,
       icon: MessageSquare,  
       trend: 'up' as const,
       trendValue: 8,
@@ -59,14 +62,14 @@ export const OrganizationAdminDashboard: React.FC = () => {
     {
       id: 'sessions',
       title: 'Active Sessions',
-      value: stats?.total_sessions || 0,
+      value: typedStats?.total_sessions || 0,
       icon: Activity,
       color: 'purple' as const,
     },
     {
       id: 'rating',
       title: 'Avg Rating',
-      value: stats?.avg_session_score || 0,
+      value: typedStats?.avg_session_score || 0,
       format: 'rating' as const,
       icon: Star,
       color: 'orange' as const,
@@ -150,7 +153,7 @@ export const OrganizationAdminDashboard: React.FC = () => {
         organizationSlug={slug || ''}
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        stats={stats}
+        stats={typedStats}
         isLoading={statsLoading}
       >
         {renderTabContent()}

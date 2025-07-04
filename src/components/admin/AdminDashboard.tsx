@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllOrganizations, updateOrganization, createOrganization } from '@/services/organizationService';
+import { getAllOrganizations } from '@/services/organizationQueries';
+import { updateOrganization, createOrganization } from '@/services/organizationMutations';
 import type { CreateOrganizationData } from '@/services/organizationService.types';
 import { AdminStats } from './AdminStats';
 import { FormConfig } from './FormConfig';
@@ -16,7 +17,7 @@ export const AdminDashboard: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const queryClient = useQueryClient();
   
-  const { data: organizations, isLoading } = useQuery({
+  const { data: organizations = [], isLoading } = useQuery({
     queryKey: ['organizations'],
     queryFn: getAllOrganizations,
   });
@@ -72,7 +73,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <AdminTabs 
-          organizations={organizations || []}
+          organizations={organizations}
           onCreateClick={() => setShowCreateModal(true)}
           onToggleActive={handleToggleActive}
           onUpdatePlan={handleUpdatePlan}

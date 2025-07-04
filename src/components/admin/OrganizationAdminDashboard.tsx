@@ -1,131 +1,173 @@
+
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { SidebarProvider } from '@/components/ui/sidebar';
-import { OrganizationHeader } from './OrganizationHeader';
-import { DashboardSidebar } from './dashboard/DashboardSidebar';
-import { DashboardErrorBoundary } from './dashboard/DashboardErrorBoundary';
-import { DashboardHeader } from './dashboard/DashboardHeader';
-import { DashboardTabs } from './dashboard/DashboardTabs';
-import { useDashboardNavigation } from './dashboard/DashboardNavigation';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/components/auth/AuthWrapper';
-import { useEnhancedOrganizationStats } from '@/hooks/useEnhancedOrganizationStats';
-import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
-import { EnhancedLoadingSpinner } from './dashboard/EnhancedLoadingSpinner';
-import { DashboardProvider } from '@/context/DashboardContext';
+import { useOrganization } from '@/context/OrganizationContext';
+import { EnhancedDashboardLayout } from './dashboard/EnhancedDashboardLayout';
+import { StatsGrid } from '@/components/dashboard/StatsGrid';
+import { FloatingActionButton, ScrollToTopFAB } from '@/components/ui/floating-action-button';
+import { H1, H2, Body } from '@/components/ui/typography';
+import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
+import { getOrganizationStats } from '@/services/organizationService';
+import { Plus, Users, MessageSquare, Activity, Star, TrendingUp } from 'lucide-react';
+
+// Tab components
+import MembersTab from './dashboard/tabs/MembersTab';
+import { FeedbackTab } from './dashboard/tabs/FeedbackTab';
+import { QuestionsTab } from './dashboard/tabs/QuestionsTab';
+import { SettingsTab } from './dashboard/tabs/SettingsTab';
+import { IntegrationsTab } from './dashboard/tabs/IntegrationsTab';
+import { SentimentTab } from './dashboard/tabs/SentimentTab';
+import { PerformanceTab } from './dashboard/tabs/PerformanceTab';
+import { CustomerInsightsTab } from './dashboard/tabs/CustomerInsightsTab';
 
 export const OrganizationAdminDashboard: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { user } = useAuth();
+  const { organization, isLoading: orgLoading } = useOrganization();
   const [activeTab, setActiveTab] = useState('overview');
-  const [isLiveActivity, setIsLiveActivity] = useState(true);
+  const { isMobile } = useResponsiveDesign();
 
-  // Fetch organization data
-  const { data: organization, isLoading: orgLoading, error: orgError } = useQuery({
-    queryKey: ['organization', slug],
-    queryFn: async () => {
-      console.log('Fetching organization by slug:', slug);
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('slug', slug)
-        .single();
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['organization-stats', organization?.id],
+    queryFn: () => getOrganizationStats(organization!.id),
+    enabled: !!organization?.id,
+  });
 
-      if (error) {
-        console.error('Error fetching organization:', error);
-        throw error;
-      }
-      console.log('Organization fetched successfully:', data);
-      return data;
+  if (orgLoading || !organization) {
+    return <div>Loading...</div>;
+  }
+
+  const dashboardStats = [
+    {
+      id: 'members',
+      title: 'Active Members',
+      value: stats?.active_members || 0,
+      icon: Users,
+      trend: 'up' as const,
+      trendValue: 12,
+      color: 'blue' as const,
     },
-    enabled: !!slug,
-    retry: 2,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+    {
+      id: 'responses',
+      title: 'Total Responses',
+      value: stats?.total_responses || 0,
+      icon: MessageSquare,  
+      trend: 'up' as const,
+      trendValue: 8,
+      color: 'green' as const,
+    },
+    {
+      id: 'sessions',
+      title: 'Active Sessions',
+      value: stats?.total_sessions || 0,
+      icon: Activity,
+      color: 'purple' as const,
+    },
+    {
+      id: 'rating',
+      title: 'Avg Rating',
+      value: stats?.avg_session_score || 0,
+      format: 'rating' as const,
+      icon: Star,
+      color: 'orange' as const,
+    },
+  ];
 
-  // Fetch enhanced organization stats
-  const { data: stats, isLoading: statsLoading } = useEnhancedOrganizationStats(organization?.id || '');
-
-  // Set up real-time updates
-  useRealtimeUpdates(organization?.id || '');
-
-  // Navigation handlers
-  const { handleNavigate, getTabLabel, handleQuickActions } = useDashboardNavigation({
-    setActiveTab
-  });
-
-  if (orgLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <EnhancedLoadingSpinner size="lg" text="Loading organization dashboard..." />
-      </div>
-    );
-  }
-
-  if (orgError || !organization) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {orgError ? 'Error Loading Organization' : 'Organization Not Found'}
-          </h2>
-          <p className="text-gray-600">
-            {orgError 
-              ? 'There was an error loading the organization. Please try again.'
-              : "The organization you're looking for doesn't exist."
-            }
-          </p>
-          {orgError && (
-            <p className="text-sm text-red-600 mt-2">
-              Error: {orgError.message}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <DashboardProvider>
-      <DashboardErrorBoundary>
-        <SidebarProvider>
-          <div className="min-h-screen flex w-full bg-warm-gray-50">
-            <DashboardSidebar
-              organizationName={organization.name}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              stats={stats}
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'members':
+        return <MembersTab organization={organization} />;
+      case 'feedback':
+        return <FeedbackTab organizationId={organization.id} />;
+      case 'questions':
+        return <QuestionsTab />;
+      case 'settings':
+        return <SettingsTab organization={organization} />;
+      case 'integrations':
+        return <IntegrationsTab />;
+      case 'sentiment':
+        return <SentimentTab organizationId={organization.id} />;
+      case 'performance':
+        return <PerformanceTab organizationId={organization.id} />;
+      case 'customer-insights':
+        return <CustomerInsightsTab organizationId={organization.id} />;
+      default:
+        return (
+          <div className="space-y-6">
+            <div>
+              <H1 className="mb-2">Welcome back!</H1>
+              <Body>Here's what's happening with {organization.name} today.</Body>
+            </div>
+            
+            <StatsGrid
+              stats={dashboardStats}
               isLoading={statsLoading}
+              columns={4}
             />
-
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <OrganizationHeader organization={organization} />
-
-              <div className="flex-1 overflow-auto">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                  <DashboardHeader
-                    organizationName={organization.name}
-                    organizationId={organization.id}
-                    currentPage={getTabLabel(activeTab)}
-                    onNavigate={handleNavigate}
-                  />
-
-                  <DashboardTabs
-                    activeTab={activeTab}
-                    setActiveTab={setActiveTab}
-                    organization={organization}
-                    stats={stats}
-                    isLiveActivity={isLiveActivity}
-                    setIsLiveActivity={setIsLiveActivity}
-                    handleQuickActions={handleQuickActions}
-                  />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Recent Activity */}
+              <div className="bg-white rounded-lg p-6 shadow-sm border">
+                <H2 className="mb-4">Recent Activity</H2>
+                <Body>Activity feed coming soon...</Body>
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="bg-white rounded-lg p-6 shadow-sm border">
+                <H2 className="mb-4">Quick Actions</H2>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setActiveTab('members')}
+                    className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Users className="w-5 h-5 text-blue-600" />
+                      <span>Invite new members</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('questions')}
+                    className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <MessageSquare className="w-5 h-5 text-green-600" />
+                      <span>Create new question</span>
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        </SidebarProvider>
-      </DashboardErrorBoundary>
-    </DashboardProvider>
+        );
+    }
+  };
+
+  return (
+    <>
+      <EnhancedDashboardLayout
+        organizationName={organization.name}
+        organizationId={organization.id}
+        organizationSlug={slug || ''}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        stats={stats}
+        isLoading={statsLoading}
+      >
+        {renderTabContent()}
+      </EnhancedDashboardLayout>
+      
+      {/* Floating Action Button for mobile */}
+      {isMobile && activeTab === 'overview' && (
+        <FloatingActionButton
+          onClick={() => setActiveTab('members')}
+          extended
+        >
+          <Plus className="w-5 h-5" />
+          Quick Action
+        </FloatingActionButton>
+      )}
+      
+      <ScrollToTopFAB />
+    </>
   );
 };

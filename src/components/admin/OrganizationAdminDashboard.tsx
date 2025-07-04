@@ -22,6 +22,11 @@ import { SentimentTab } from './dashboard/tabs/SentimentTab';
 import { PerformanceTab } from './dashboard/tabs/PerformanceTab';
 import { CustomerInsightsTab } from './dashboard/tabs/CustomerInsightsTab';
 
+// Import analytics components
+import { AnalyticsTable } from './dashboard/AnalyticsTable';
+import { AnalyticsInsights } from './dashboard/AnalyticsInsights';
+import { SessionTrendsChart } from './dashboard/charts/SessionTrendsChart';
+
 export const OrganizationAdminDashboard: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { organization, loading: orgLoading } = useOrganization();
@@ -99,7 +104,7 @@ export const OrganizationAdminDashboard: React.FC = () => {
         return (
           <div className="space-y-6">
             <div>
-              <H1 className="mb-2">Welcome back!</H1>
+              <H1 className="mb-2">Analytics Dashboard</H1>
               <Body>Here's what's happening with {organization.name} today.</Body>
             </div>
             
@@ -108,37 +113,56 @@ export const OrganizationAdminDashboard: React.FC = () => {
               isLoading={statsLoading}
               columns={4}
             />
+
+            {/* Trend Analysis Chart */}
+            <div className="bg-white rounded-lg p-6 shadow-sm border">
+              <H2 className="mb-4">Trend Analysis</H2>
+              <Body className="text-gray-600 mb-4">Key metrics over the selected period</Body>
+              <SessionTrendsChart organizationId={organization.id} />
+            </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Recent Activity */}
-              <div className="bg-white rounded-lg p-6 shadow-sm border">
-                <H2 className="mb-4">Recent Activity</H2>
-                <Body>Activity feed coming soon...</Body>
+              {/* Analytics Dashboard Table */}
+              <div className="bg-white rounded-lg shadow-sm border">
+                <div className="p-6 border-b">
+                  <H2>Analytics Dashboard</H2>
+                </div>
+                <AnalyticsTable organizationId={organization.id} />
               </div>
               
-              {/* Quick Actions */}
-              <div className="bg-white rounded-lg p-6 shadow-sm border">
-                <H2 className="mb-4">Quick Actions</H2>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setActiveTab('members')}
-                    className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Users className="w-5 h-5 text-blue-600" />
-                      <span>Invite new members</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('questions')}
-                    className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="w-5 h-5 text-green-600" />
-                      <span>Create new question</span>
-                    </div>
-                  </button>
+              {/* Analytics Insights */}
+              <div className="bg-white rounded-lg shadow-sm border">
+                <div className="p-6 border-b">
+                  <H2>Analytics Insights</H2>
                 </div>
+                <div className="p-6">
+                  <AnalyticsInsights organizationId={organization.id} />
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-lg p-6 shadow-sm border">
+              <H2 className="mb-4">Quick Actions</H2>
+              <div className="space-y-3">
+                <button
+                  onClick={() => setActiveTab('members')}
+                  className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className="w-5 h-5 text-blue-600" />
+                    <span>Invite new members</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('questions')}
+                  className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className="w-5 h-5 text-green-600" />
+                    <span>Create new question</span>
+                  </div>
+                </button>
               </div>
             </div>
           </div>

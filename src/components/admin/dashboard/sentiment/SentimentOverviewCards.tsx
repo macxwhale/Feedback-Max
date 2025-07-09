@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Brain, Smile, Meh, Frown } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Brain, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 
 interface SentimentOverviewCardsProps {
   sentimentStats: {
@@ -18,69 +19,75 @@ export const SentimentOverviewCards: React.FC<SentimentOverviewCardsProps> = ({
   totalQuestions,
   overallScore
 }) => {
+  const overallSentiment = sentimentStats.positive > sentimentStats.negative ? 'positive' : 
+                          sentimentStats.negative > sentimentStats.positive ? 'negative' : 'neutral';
+
+  const sentimentMetrics = [
+    {
+      title: 'Overall Sentiment',
+      value: overallSentiment,
+      count: totalQuestions,
+      icon: Brain,
+      color: overallSentiment === 'positive' ? 'text-green-600' : 
+             overallSentiment === 'negative' ? 'text-red-600' : 'text-yellow-600',
+      bgColor: overallSentiment === 'positive' ? 'bg-green-50' : 
+               overallSentiment === 'negative' ? 'bg-red-50' : 'bg-yellow-50',
+      description: 'Dominant sentiment across all questions'
+    },
+    {
+      title: 'Positive Responses',
+      value: sentimentStats.positive,
+      percentage: Math.round((sentimentStats.positive / totalQuestions) * 100),
+      icon: TrendingUp,
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      description: 'Questions with positive feedback trends'
+    },
+    {
+      title: 'Negative Responses',
+      value: sentimentStats.negative,
+      percentage: Math.round((sentimentStats.negative / totalQuestions) * 100),
+      icon: TrendingDown,
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
+      description: 'Questions requiring attention'
+    },
+    {
+      title: 'Neutral Responses',
+      value: sentimentStats.neutral,
+      percentage: Math.round((sentimentStats.neutral / totalQuestions) * 100),
+      icon: Activity,
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-50',
+      description: 'Balanced or mixed sentiment'
+    }
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-2">
-            <Smile className="w-5 h-5 text-green-600" />
-            <span className="text-sm font-medium text-gray-600">Positive</span>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl font-bold text-green-600">
-              {sentimentStats.positive}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {sentimentMetrics.map((metric, index) => (
+        <Card key={index} className="hover:shadow-md transition-shadow duration-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className={`p-2 rounded-lg ${metric.bgColor}`}>
+                <metric.icon className={`w-4 h-4 ${metric.color}`} />
+              </div>
+              {metric.percentage !== undefined && (
+                <Badge variant="outline" className="text-xs">
+                  {metric.percentage}%
+                </Badge>
+              )}
             </div>
-            <div className="text-sm text-gray-500">
-              {Math.round((sentimentStats.positive / totalQuestions) * 100)}% of questions
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-1">{metric.title}</p>
+              <div className={`text-2xl font-bold mb-1 ${metric.color}`}>
+                {typeof metric.value === 'string' ? metric.value : metric.value}
+              </div>
+              <p className="text-xs text-gray-500">{metric.description}</p>
             </div>
-            <Progress 
-              value={(sentimentStats.positive / totalQuestions) * 100} 
-              className="mt-2 h-2" 
-            />
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-2">
-            <Meh className="w-5 h-5 text-yellow-600" />
-            <span className="text-sm font-medium text-gray-600">Neutral</span>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl font-bold text-yellow-600">
-              {sentimentStats.neutral}
-            </div>
-            <div className="text-sm text-gray-500">
-              {Math.round((sentimentStats.neutral / totalQuestions) * 100)}% of questions
-            </div>
-            <Progress 
-              value={(sentimentStats.neutral / totalQuestions) * 100} 
-              className="mt-2 h-2" 
-            />
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-2">
-            <Frown className="w-5 h-5 text-red-600" />
-            <span className="text-sm font-medium text-gray-600">Negative</span>
-          </div>
-          <div className="mt-2">
-            <div className="text-2xl font-bold text-red-600">
-              {sentimentStats.negative}
-            </div>
-            <div className="text-sm text-gray-500">
-              {Math.round((sentimentStats.negative / totalQuestions) * 100)}% of questions
-            </div>
-            <Progress 
-              value={(sentimentStats.negative / totalQuestions) * 100} 
-              className="mt-2 h-2" 
-            />
-          </div>
-        </CardContent>
-      </Card>
-      {/* Removed overallScore/score display card */}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 };

@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Plus, MessageSquare } from 'lucide-react';
 import { EnhancedCampaignItem } from './EnhancedCampaignItem';
 import { CampaignFilters } from './CampaignFilters';
+import { CampaignEditModal } from './CampaignEditModal';
+import { CampaignDeleteModal } from './CampaignDeleteModal';
 
 interface Campaign {
   id: string;
@@ -29,9 +31,12 @@ interface EnhancedCampaignsListProps {
   onResume: (campaignId: string) => void;
   onDuplicate: (campaignId: string) => void;
   onSchedule: (campaignId: string) => void;
+  onEdit: (campaignId: string, name: string, template: string) => void;
   onDelete: (campaignId: string) => void;
   onCreateNew: () => void;
   isLoading: boolean;
+  isEditLoading?: boolean;
+  isDeleteLoading?: boolean;
 }
 
 export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
@@ -44,14 +49,19 @@ export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
   onResume,
   onDuplicate,
   onSchedule,
+  onEdit,
   onDelete,
   onCreateNew,
-  isLoading
+  isLoading,
+  isEditLoading = false,
+  isDeleteLoading = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
 
   // Filter and sort campaigns
   const filteredAndSortedCampaigns = useMemo(() => {
@@ -90,6 +100,24 @@ export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
 
     return filtered;
   }, [campaigns, searchTerm, statusFilter, sortBy, sortOrder]);
+
+  const handleEdit = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+  };
+
+  const handleSaveEdit = (campaignId: string, name: string, template: string) => {
+    onEdit(campaignId, name, template);
+    setEditingCampaign(null);
+  };
+
+  const handleDelete = (campaign: Campaign) => {
+    setDeletingCampaign(campaign);
+  };
+
+  const handleConfirmDelete = (campaignId: string) => {
+    onDelete(campaignId);
+    setDeletingCampaign(null);
+  };
 
   if (campaigns.length === 0) {
     return (
@@ -161,12 +189,31 @@ export const EnhancedCampaignsList: React.FC<EnhancedCampaignsListProps> = ({
               onResume={onResume}
               onDuplicate={onDuplicate}
               onSchedule={onSchedule}
-              onDelete={onDelete}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
               isLoading={isLoading}
             />
           ))
         )}
       </div>
+
+      {/* Edit Modal */}
+      <CampaignEditModal
+        campaign={editingCampaign}
+        isOpen={!!editingCampaign}
+        onClose={() => setEditingCampaign(null)}
+        onSave={handleSaveEdit}
+        isLoading={isEditLoading}
+      />
+
+      {/* Delete Modal */}
+      <CampaignDeleteModal
+        campaign={deletingCampaign}
+        isOpen={!!deletingCampaign}
+        onClose={() => setDeletingCampaign(null)}
+        onDelete={handleConfirmDelete}
+        isLoading={isDeleteLoading}
+      />
     </div>
   );
 };

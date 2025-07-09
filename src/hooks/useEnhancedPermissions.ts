@@ -1,8 +1,7 @@
-
 import { useAuth } from '@/components/auth/AuthWrapper';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { hasPermission } from '@/utils/enhancedRoleUtils';
+import { hasPermission } from '@/utils/roleManagement';
 
 interface Permission {
   allowed: boolean;

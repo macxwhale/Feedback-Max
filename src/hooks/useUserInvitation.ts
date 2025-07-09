@@ -1,6 +1,7 @@
 
 import { createMutation } from './useMutationFactory';
 import { toast } from 'sonner';
+import { useEnhancedCancelInvitation } from './useEnhancedCancelInvitation';
 
 interface InviteUserParams {
   email: string;
@@ -63,17 +64,8 @@ export const useInviteUser = () => {
   });
 };
 
-export const useCancelInvitation = () => {
-  return createMutation<CancelInvitationParams, CancelInvitationResponse>({
-    rpcName: 'cancel_invitation',
-    queryKeysToInvalidate: [QUERY_KEYS.ORGANIZATION_INVITATIONS],
-    successMessage: 'Invitation cancelled successfully',
-    errorMessage: 'Failed to cancel invitation',
-    paramsMapper: ({ invitationId }) => ({
-      p_invitation_id: invitationId
-    }),
-  });
-};
+// Use the enhanced cancellation hook
+export const useCancelInvitation = useEnhancedCancelInvitation;
 
 export const useRemoveUser = () => {
   return createMutation<RemoveUserParams, RemoveUserResponse>({

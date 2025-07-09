@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { getInitials } from '@/utils/userManagementUtils';
+import { getInitials } from '@/utils/roleManagement';
 
 interface UserAvatarProps {
   email: string;

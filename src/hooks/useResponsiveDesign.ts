@@ -1,73 +1,170 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { breakpoints, responsiveUtils, type Breakpoint } from '@/config/design-system/responsive';
 
-export type BreakpointType = 'mobile' | 'tablet' | 'desktop';
-export type OrientationType = 'portrait' | 'landscape';
-
-interface ResponsiveState {
-  breakpoint: BreakpointType;
-  orientation: OrientationType;
+interface UseResponsiveDesignReturn {
+  // Current state
   isMobile: boolean;
   isTablet: boolean;
   isDesktop: boolean;
   screenWidth: number;
-  screenHeight: number;
-  hasHover: boolean;
+  
+  // Enhanced breakpoint system
+  breakpoint: 'mobile' | 'tablet' | 'desktop'; // Legacy compatibility
+  currentBreakpoint: Breakpoint;
+  isBreakpoint: (bp: Breakpoint) => boolean;
+  isBreakpointUp: (bp: Breakpoint) => boolean;
+  isBreakpointDown: (bp: Breakpoint) => boolean;
+  
+  // Device capabilities
   isTouchDevice: boolean;
+  hasHover: boolean;
+  supportsHover: boolean;
+  
+  // Accessibility preferences
+  prefersReducedMotion: boolean;
+  prefersHighContrast: boolean;
+  
+  // Layout helpers
+  getResponsiveValue: <T>(values: Record<string, T>) => T;
+  shouldUseCompactLayout: boolean;
+  shouldUseTouch: boolean;
 }
 
-export const useResponsiveDesign = (): ResponsiveState => {
-  const [state, setState] = useState<ResponsiveState>(() => ({
-    breakpoint: 'desktop',
-    orientation: 'landscape',
-    isMobile: false,
-    isTablet: false,
-    isDesktop: true,
-    screenWidth: 1024,
-    screenHeight: 768,
-    hasHover: true,
-    isTouchDevice: false,
-  }));
+export const useResponsiveDesign = (): UseResponsiveDesignReturn => {
+  const [screenWidth, setScreenWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
+  
+  const [preferences, setPreferences] = useState({
+    prefersReducedMotion: false,
+    prefersHighContrast: false,
+  });
 
   useEffect(() => {
-    const updateState = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      
-      let breakpoint: BreakpointType = 'desktop';
-      if (width < 768) breakpoint = 'mobile';
-      else if (width < 1024) breakpoint = 'tablet';
+    if (typeof window === 'undefined') return;
 
-      const orientation: OrientationType = width > height ? 'landscape' : 'portrait';
-      const hasHover = window.matchMedia('(hover: hover)').matches;
-      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const handleResize = () => {
+      setScreenWidth(window.innerWidth);
+    };
 
-      setState({
-        breakpoint,
-        orientation,
-        isMobile: breakpoint === 'mobile',
-        isTablet: breakpoint === 'tablet',
-        isDesktop: breakpoint === 'desktop',
-        screenWidth: width,
-        screenHeight: height,
-        hasHover,
-        isTouchDevice,
+    const handlePreferencesChange = () => {
+      setPreferences({
+        prefersReducedMotion: responsiveUtils.prefersReducedMotion(),
+        prefersHighContrast: responsiveUtils.prefersHighContrast(),
       });
     };
 
-    updateState();
+    // Set up resize listener
+    window.addEventListener('resize', handleResize);
     
-    const mediaQuery = window.matchMedia('(orientation: portrait)');
-    const resizeHandler = () => updateState();
+    // Set up media query listeners for preferences
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const highContrastQuery = window.matchMedia('(prefers-contrast: high)');
     
-    window.addEventListener('resize', resizeHandler);
-    mediaQuery.addEventListener('change', updateState);
+    reducedMotionQuery.addEventListener('change', handlePreferencesChange);
+    highContrastQuery.addEventListener('change', handlePreferencesChange);
+    
+    // Set initial values
+    handleResize();
+    handlePreferencesChange();
 
     return () => {
-      window.removeEventListener('resize', resizeHandler);
-      mediaQuery.removeEventListener('change', updateState);
+      window.removeEventListener('resize', handleResize);
+      reducedMotionQuery.removeEventListener('change', handlePreferencesChange);
+      highContrastQuery.removeEventListener('change', handlePreferencesChange);
     };
   }, []);
 
-  return state;
+  // Memoized calculations for performance
+  const breakpointInfo = useMemo(() => {
+    const getCurrentBreakpoint = (): Breakpoint => {
+      if (screenWidth < 480) return 'xs';
+      if (screenWidth < 768) return 'sm';
+      if (screenWidth < 1024) return 'md';
+      if (screenWidth < 1440) return 'lg';
+      return 'xl';
+    };
+
+    const currentBreakpoint = getCurrentBreakpoint();
+    
+    return {
+      currentBreakpoint,
+      isMobile: screenWidth < 768,
+      isTablet: screenWidth >= 768 && screenWidth < 1024,
+      isDesktop: screenWidth >= 1024,
+      isBreakpoint: (bp: Breakpoint) => currentBreakpoint === bp,
+      isBreakpointUp: (bp: Breakpoint) => {
+        const bpValues = { xs: 0, sm: 480, md: 768, lg: 1024, xl: 1440 };
+        return screenWidth >= bpValues[bp];
+      },
+      isBreakpointDown: (bp: Breakpoint) => {
+        const bpValues = { xs: 479, sm: 767, md: 1023, lg: 1439, xl: Infinity };
+        return screenWidth <= bpValues[bp];
+      },
+    };
+  }, [screenWidth]);
+
+  // Device capability detection
+  const deviceCapabilities = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return {
+        isTouchDevice: false,
+        hasHover: false,
+        supportsHover: false,
+      };
+    }
+
+    const isTouchDevice = (
+      'ontouchstart' in window || 
+      navigator.maxTouchPoints > 0 ||
+      // @ts-ignore - for older browsers
+      navigator.msMaxTouchPoints > 0
+    );
+
+    const hasHover = responsiveUtils.supportsHover();
+
+    return {
+      isTouchDevice,
+      hasHover,
+      supportsHover: hasHover,
+    };
+  }, []);
+
+  // Layout helpers
+  const layoutHelpers = useMemo(() => {
+    const shouldUseCompactLayout = breakpointInfo.isMobile || 
+      (breakpointInfo.isTablet && deviceCapabilities.isTouchDevice);
+    
+    const shouldUseTouch = deviceCapabilities.isTouchDevice || breakpointInfo.isMobile;
+
+    const getResponsiveValue = <T>(values: Record<string, T>): T => {
+      return responsiveUtils.getResponsiveValue(values, breakpointInfo.currentBreakpoint);
+    };
+
+    return {
+      shouldUseCompactLayout,
+      shouldUseTouch,
+      getResponsiveValue,
+    };
+  }, [breakpointInfo, deviceCapabilities]);
+
+  return {
+    // Current state
+    screenWidth,
+    ...breakpointInfo,
+    
+    // Legacy compatibility
+    breakpoint: breakpointInfo.isMobile ? 'mobile' : 
+               breakpointInfo.isTablet ? 'tablet' : 'desktop',
+    
+    // Device capabilities
+    ...deviceCapabilities,
+    
+    // Accessibility preferences
+    ...preferences,
+    
+    // Layout helpers
+    ...layoutHelpers,
+  };
 };

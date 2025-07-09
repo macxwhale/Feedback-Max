@@ -1,10 +1,18 @@
-
 /**
- * Performance Data Collector
- * Handles raw performance data collection from browser APIs
+ * Performance Collector
+ * Collects various performance metrics from the browser
  */
 
-import { logger } from '@/utils/logger';
+export interface NavigationMetrics {
+  totalLoad: number;
+  domContentLoaded: number;
+  firstContentfulPaint: number;
+}
+
+export interface PaintMetrics {
+  'first-paint': number;
+  'first-contentful-paint': number;
+}
 
 export interface PerformanceEntry {
   name: string;
@@ -14,106 +22,71 @@ export interface PerformanceEntry {
   context?: Record<string, unknown>;
 }
 
-export interface NavigationMetrics {
-  dnsLookup: number;
-  tcpConnect: number;
-  requestResponse: number;
-  domProcessing: number;
-  totalLoad: number;
-}
-
-/**
- * Collects performance data from various browser APIs
- */
 export class PerformanceCollector {
-  private static instance: PerformanceCollector;
   private entries: PerformanceEntry[] = [];
 
-  private constructor() {}
-
-  public static getInstance(): PerformanceCollector {
-    if (!PerformanceCollector.instance) {
-      PerformanceCollector.instance = new PerformanceCollector();
-    }
-    return PerformanceCollector.instance;
-  }
-
-  /**
-   * Collect navigation timing data
-   */
   collectNavigationMetrics(): NavigationMetrics | null {
-    if (typeof window === 'undefined') return null;
-
-    try {
-      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-      if (!navigation) return null;
-
-      return {
-        dnsLookup: navigation.domainLookupEnd - navigation.domainLookupStart,
-        tcpConnect: navigation.connectEnd - navigation.connectStart,
-        requestResponse: navigation.responseEnd - navigation.requestStart,
-        domProcessing: navigation.domComplete - navigation.responseEnd,
-        totalLoad: navigation.loadEventEnd - navigation.fetchStart,
-      };
-    } catch (error) {
-      logger.error('Failed to collect navigation metrics', { error: error instanceof Error ? error.message : String(error) });
+    if (typeof window === 'undefined' || !window.performance?.timing) {
       return null;
     }
+
+    const timing = window.performance.timing;
+    return {
+      totalLoad: timing.loadEventEnd - timing.navigationStart,
+      domContentLoaded: timing.domContentLoadedEventEnd - timing.navigationStart,
+      firstContentfulPaint: this.getFirstContentfulPaint()
+    };
   }
 
-  /**
-   * Collect paint timing data
-   */
-  collectPaintMetrics(): Record<string, number> {
-    if (typeof window === 'undefined') return {};
+  collectPaintMetrics(): PaintMetrics {
+    const metrics: PaintMetrics = {
+      'first-paint': 0,
+      'first-contentful-paint': 0
+    };
 
-    try {
-      const paintEntries = performance.getEntriesByType('paint');
-      const metrics: Record<string, number> = {};
-
-      paintEntries.forEach((entry) => {
-        metrics[entry.name] = entry.startTime;
-      });
-
+    if (typeof window === 'undefined' || !window.performance?.getEntriesByType) {
       return metrics;
-    } catch (error) {
-      logger.error('Failed to collect paint metrics', { error: error instanceof Error ? error.message : String(error) });
-      return {};
     }
+
+    const paintEntries = window.performance.getEntriesByType('paint');
+    
+    paintEntries.forEach((entry) => {
+      if (entry.name === 'first-paint') {
+        metrics['first-paint'] = entry.startTime;
+      } else if (entry.name === 'first-contentful-paint') {
+        metrics['first-contentful-paint'] = entry.startTime;
+      }
+    });
+
+    return metrics;
   }
 
-  /**
-   * Collect long task data
-   */
-  collectLongTasks(): PerformanceEntry[] {
-    return this.entries.filter(entry => entry.entryType === 'longtask');
-  }
-
-  /**
-   * Add performance entry
-   */
   addEntry(entry: PerformanceEntry): void {
     this.entries.push(entry);
     
-    // Keep entries bounded
-    if (this.entries.length > 500) {
-      this.entries = this.entries.slice(-250);
+    // Keep only the last 1000 entries to prevent memory leaks
+    if (this.entries.length > 1000) {
+      this.entries = this.entries.slice(-1000);
     }
   }
 
-  /**
-   * Get all collected entries
-   */
   getEntries(): PerformanceEntry[] {
     return [...this.entries];
   }
 
-  /**
-   * Clear all entries
-   */
   clearEntries(): void {
     this.entries = [];
   }
+
+  private getFirstContentfulPaint(): number {
+    if (typeof window === 'undefined' || !window.performance?.getEntriesByType) {
+      return 0;
+    }
+
+    const paintEntries = window.performance.getEntriesByType('paint');
+    const fcpEntry = paintEntries.find(entry => entry.name === 'first-contentful-paint');
+    return fcpEntry ? fcpEntry.startTime : 0;
+  }
 }
 
-export const performanceCollector = PerformanceCollector.getInstance();
+export const performanceCollector = new PerformanceCollector();

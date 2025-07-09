@@ -1,12 +1,10 @@
-/**
- * Enhanced Stats Grid Component
- * Optimized statistics display with proper memoization
- */
 
 import React, { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
+import { ResponsiveGrid } from '@/components/ui/responsive-layout';
 
 export interface StatCard {
   id: string;
@@ -19,6 +17,7 @@ export interface StatCard {
   };
   icon?: React.ComponentType<{ className?: string }>;
   description?: string;
+  explanation?: string;
 }
 
 interface EnhancedStatsGridProps {
@@ -29,6 +28,22 @@ interface EnhancedStatsGridProps {
 
 const StatCardComponent = memo<{ stat: StatCard; isLoading: boolean }>(({ stat, isLoading }) => {
   const Icon = stat.icon;
+  const { isMobile } = useResponsiveDesign();
+  
+  // Exclude unwanted cards
+  const excludedCards = [
+    'quality-score', 
+    'team-performance', 
+    'system-health', 
+    'bounce-rate', 
+    'operational-efficiency',
+    'performance-tracking',
+    'enhanced-dashboard'
+  ];
+  
+  if (excludedCards.includes(stat.id)) {
+    return null;
+  }
   
   const getTrendIcon = (trend: 'up' | 'down' | 'neutral') => {
     switch (trend) {
@@ -54,8 +69,8 @@ const StatCardComponent = memo<{ stat: StatCard; isLoading: boolean }>(({ stat, 
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <Card className="hover:shadow-lg transition-shadow duration-200">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-sm font-medium">
             <div className="h-4 w-24 bg-muted animate-pulse rounded" />
           </CardTitle>
@@ -63,7 +78,7 @@ const StatCardComponent = memo<{ stat: StatCard; isLoading: boolean }>(({ stat, 
             <div className="h-4 w-4 bg-muted animate-pulse rounded" />
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           <div className="h-8 w-16 bg-muted animate-pulse rounded mb-2" />
           <div className="h-3 w-20 bg-muted animate-pulse rounded" />
         </CardContent>
@@ -72,34 +87,40 @@ const StatCardComponent = memo<{ stat: StatCard; isLoading: boolean }>(({ stat, 
   }
 
   return (
-    <Card className="transition-all duration-200 hover:shadow-md">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+    <Card className="hover:shadow-lg transition-all duration-200 hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {stat.title}
         </CardTitle>
         {Icon && (
-          <Icon className="h-4 w-4 text-muted-foreground" />
+          <Icon className="h-5 w-5 text-muted-foreground" />
         )}
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold tracking-tight">
+      <CardContent className="pt-0">
+        <div className="text-2xl lg:text-3xl font-bold tracking-tight mb-2">
           {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
         </div>
         
         {stat.change && (
-          <div className="flex items-center space-x-1 mt-2">
+          <div className="flex items-center space-x-1 mb-3">
             {getTrendIcon(stat.change.trend)}
-            <span className={`text-xs font-medium ${getTrendColor(stat.change.trend)}`}>
+            <span className={`text-sm font-medium ${getTrendColor(stat.change.trend)}`}>
               {stat.change.value > 0 ? '+' : ''}{stat.change.value}%
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               vs {stat.change.period}
             </span>
           </div>
         )}
         
-        {stat.description && (
-          <p className="text-xs text-muted-foreground mt-1">
+        {stat.explanation && (
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {stat.explanation}
+          </p>
+        )}
+        
+        {stat.description && !stat.explanation && (
+          <p className="text-sm text-muted-foreground">
             {stat.description}
           </p>
         )}
@@ -115,16 +136,46 @@ export const EnhancedStatsGrid = memo<EnhancedStatsGridProps>(({
   isLoading = false, 
   className = '' 
 }) => {
+  const { isMobile, isTablet } = useResponsiveDesign();
+  
+  // Filter out excluded cards
+  const filteredStats = stats.filter(stat => {
+    const excludedCards = [
+      'quality-score', 
+      'team-performance', 
+      'system-health', 
+      'bounce-rate', 
+      'operational-efficiency',
+      'performance-tracking',
+      'enhanced-dashboard'
+    ];
+    return !excludedCards.includes(stat.id);
+  });
+
+  if (filteredStats.length === 0) {
+    return null;
+  }
+
   return (
-    <div className={`grid gap-4 md:grid-cols-2 lg:grid-cols-4 ${className}`}>
-      {stats.map((stat) => (
+    <ResponsiveGrid
+      columns={{ 
+        xs: 1, 
+        sm: 1, 
+        md: 2, 
+        lg: Math.min(3, filteredStats.length), 
+        xl: Math.min(4, filteredStats.length) 
+      }}
+      gap="lg"
+      className={`w-full ${className}`}
+    >
+      {filteredStats.map((stat) => (
         <StatCardComponent
           key={stat.id}
           stat={stat}
           isLoading={isLoading}
         />
       ))}
-    </div>
+    </ResponsiveGrid>
   );
 });
 

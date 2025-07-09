@@ -1,3 +1,4 @@
+
 export interface TrendDataPoint {
   date: string;
   total_sessions: number;
@@ -37,6 +38,20 @@ export interface AnalyticsTableData {
     total_questions: number;
     total_responses: number;
     overall_completion_rate: number;
+    total_sessions: number;
+    completed_sessions: number;
+    avg_score: number;
+    user_satisfaction_rate: number;
+    growth_rate: number;
+    abandoned_sessions: number;
+    response_rate: number;
   };
   trendData: TrendDataPoint[];
+}
+
+export interface PerformanceMetrics {
+  overall_performance: number;
+  user_satisfaction: number;
+  growth_trajectory: number;
+  status: 'excellent' | 'good' | 'needs_attention' | 'critical';
 }

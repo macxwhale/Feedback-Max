@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedLoadingSpinner } from '@/components/admin/dashboard/EnhancedLoadingSpinner';
 import { AuthService } from '@/services/authService';
-import type { EnhancedRole } from '@/utils/userManagementUtils';
+import type { Role } from '@/utils/roleManagement';
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -137,7 +136,7 @@ const AuthCallback: React.FC = () => {
               organization_id: organization.id,
               email: userEmail,
               role: role,
-              enhanced_role: enhancedRole as EnhancedRole,
+              enhanced_role: enhancedRole as Role,
               status: 'active',
               accepted_at: new Date().toISOString()
             });

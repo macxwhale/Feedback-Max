@@ -1,6 +1,7 @@
+
 /**
  * User Service Interface
- * Defines the contract for user-related operations
+ * Defines contract for user operations
  */
 
 export interface User {
@@ -57,6 +58,16 @@ export interface IUserService {
    * Get a user by ID
    */
   getUserById(userId: string): Promise<User | null>;
+
+  /**
+   * Get user by ID (alias for compatibility)
+   */
+  getUser(userId: string): Promise<User | null>;
+
+  /**
+   * Update user profile
+   */
+  updateUser(userId: string, updates: Partial<User>): Promise<User>;
 
   /**
    * Invite a user to an organization

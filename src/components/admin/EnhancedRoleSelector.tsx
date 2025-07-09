@@ -1,8 +1,7 @@
 
 import React from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { getEnhancedRoleBadge, getAvailableRolesForUser, type EnhancedRole } from '@/utils/enhancedRoleUtils';
+import { getRoleConfig, getAvailableRoles, type Role } from '@/utils/roleManagement';
 
 interface EnhancedRoleSelectorProps {
   currentUserRole: string;
@@ -17,38 +16,27 @@ export const EnhancedRoleSelector: React.FC<EnhancedRoleSelectorProps> = ({
   onRoleChange,
   disabled = false
 }) => {
-  const availableRoles = getAvailableRolesForUser(currentUserRole);
+  const availableRoles = getAvailableRoles(currentUserRole);
+  
+  // Add current selected role if it exists (for editing scenarios)
+  const allRoles = [...availableRoles];
+  if (selectedRole && !availableRoles.includes(selectedRole as Role)) {
+    allRoles.push(selectedRole as Role);
+  }
 
   return (
     <Select value={selectedRole} onValueChange={onRoleChange} disabled={disabled}>
-      <SelectTrigger className="w-full">
-        <SelectValue>
-          <div className="flex items-center gap-2">
-            {(() => {
-              const { icon: Icon, label } = getEnhancedRoleBadge(selectedRole);
-              return (
-                <>
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </>
-              );
-            })()}
-          </div>
-        </SelectValue>
+      <SelectTrigger>
+        <SelectValue placeholder="Select a role" />
       </SelectTrigger>
       <SelectContent>
-        {availableRoles.map((role) => {
-          const { icon: Icon, label, description, variant } = getEnhancedRoleBadge(role);
+        {allRoles.map((role) => {
+          const config = getRoleConfig(role);
           return (
             <SelectItem key={role} value={role}>
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                  <Icon className="w-4 h-4" />
-                  <span>{label}</span>
-                </div>
-                <Badge variant={variant} className="text-xs">
-                  {label}
-                </Badge>
+              <div className="flex items-center gap-2">
+                <config.icon className="w-4 h-4" />
+                <span>{config.label}</span>
               </div>
             </SelectItem>
           );

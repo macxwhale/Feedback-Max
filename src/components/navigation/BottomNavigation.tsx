@@ -3,6 +3,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
 import { 
   BarChart3, 
   Users, 
@@ -37,6 +38,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   organizationSlug
 }) => {
   const location = useLocation();
+  const { isMobile, prefersReducedMotion } = useResponsiveDesign();
   
   const getItemPath = (item: NavItem) => {
     return organizationSlug ? `/admin/${organizationSlug}${item.path}` : item.path;
@@ -47,10 +49,12 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     return location.pathname === itemPath || location.pathname.startsWith(itemPath);
   };
 
+  if (!isMobile) return null;
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-gray-200 px-2 pb-safe">
-      <div className="flex items-center justify-around max-w-md mx-auto">
-        {items.map((item) => {
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-gray-200 safe-area-inset-bottom">
+      <div className="flex items-center justify-around max-w-full mx-auto px-2 py-2">
+        {items.slice(0, 5).map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
           
@@ -59,9 +63,10 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               key={item.id}
               to={getItemPath(item)}
               className={cn(
-                'flex flex-col items-center gap-1 py-2 px-3 min-w-[60px] rounded-lg transition-all duration-200',
+                'flex flex-col items-center gap-1 py-2 px-2 min-w-0 flex-1 rounded-lg transition-all',
+                !prefersReducedMotion && 'duration-200',
                 'active:scale-95 active:bg-gray-100',
-                active ? 'text-primary' : 'text-gray-600 hover:text-gray-800'
+                active ? 'text-primary bg-primary/10' : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
               )}
             >
               <div className="relative">
@@ -69,13 +74,16 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 {item.badge && (
                   <Badge 
                     variant="destructive" 
-                    className="absolute -top-2 -right-2 w-4 h-4 p-0 text-xs flex items-center justify-center"
+                    className="absolute -top-2 -right-2 w-4 h-4 p-0 text-xs flex items-center justify-center min-w-4"
                   >
-                    {item.badge}
+                    {typeof item.badge === 'number' && item.badge > 99 ? '99+' : item.badge}
                   </Badge>
                 )}
               </div>
-              <span className={cn('text-xs font-medium', active && 'font-semibold')}>
+              <span className={cn(
+                'text-xs font-medium truncate max-w-full text-center',
+                active && 'font-semibold'
+              )}>
                 {item.label}
               </span>
             </Link>

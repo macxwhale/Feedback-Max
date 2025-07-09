@@ -127,6 +127,49 @@ export class UserService implements IUserService {
   }
 
   /**
+   * Get user by ID (alias for compatibility)
+   */
+  async getUser(userId: string): Promise<User | null> {
+    return this.getUserById(userId);
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateUser(userId: string, updates: Partial<User>): Promise<User> {
+    try {
+      const { data, error } = await supabase
+        .from('organization_users')
+        .update({
+          email: updates.email,
+          role: updates.role,
+          status: updates.isActive ? 'active' : 'inactive'
+        })
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return {
+        id: data.user_id,
+        email: data.email,
+        role: data.role as User['role'],
+        organizationId: data.organization_id,
+        isActive: data.status === 'active',
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+
+    } catch (error) {
+      logger.error('Failed to update user', { userId, updates, error });
+      throw handleUnknownError(error, 'Failed to update user');
+    }
+  }
+
+  /**
    * Invite a user to an organization
    */
   async inviteUser(params: InviteUserParams): Promise<InviteUserResponse> {

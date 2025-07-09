@@ -85,6 +85,71 @@ export const useSmsCampaigns = () => {
     }
   });
 
+  // Update campaign mutation
+  const updateCampaignMutation = useMutation({
+    mutationFn: async ({ campaignId, name, template }: { 
+      campaignId: string; 
+      name: string; 
+      template: string; 
+    }) => {
+      const { data, error } = await supabase
+        .from('sms_campaigns')
+        .update({
+          name,
+          message_template: template,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', campaignId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sms-campaigns'] });
+      toast({
+        title: "Success",
+        description: "Campaign updated successfully"
+      });
+    },
+    onError: (error) => {
+      console.error('Error updating campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update campaign",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Delete campaign mutation
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { error } = await supabase
+        .from('sms_campaigns')
+        .delete()
+        .eq('id', campaignId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sms-campaigns'] });
+      toast({
+        title: "Success",
+        description: "Campaign deleted successfully"
+      });
+    },
+    onError: (error) => {
+      console.error('Error deleting campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete campaign",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Send campaign mutation - Uses Flask wrapper only
   const sendCampaignMutation = useMutation({
     mutationFn: async ({ campaignId, isResend = false, isRetry = false }: { 
@@ -172,6 +237,8 @@ export const useSmsCampaigns = () => {
     phoneNumbersLoading,
     phoneNumbersError,
     createCampaignMutation,
+    updateCampaignMutation,
+    deleteCampaignMutation,
     sendCampaignMutation,
     campaignControlMutation,
     organization

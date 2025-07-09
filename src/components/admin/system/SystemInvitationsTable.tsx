@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Mail } from 'lucide-react';
 import { EnhancedRoleBadge } from '../EnhancedRoleBadge';
 import { SystemInvitation } from '@/hooks/useSystemUsers';
-import { isExpiringSoon } from '@/utils/userManagementUtils';
+import { isExpiringSoon } from '@/utils/roleManagement';
 
 interface SystemInvitationsTableProps {
   invitations: SystemInvitation[];

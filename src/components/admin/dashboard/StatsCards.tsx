@@ -1,7 +1,6 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { MetricCard } from './MetricCard';
 import { LucideIcon } from 'lucide-react';
 import { StatsCardSkeleton } from '@/components/ui/loading-skeleton';
 
@@ -17,23 +16,34 @@ interface StatCard {
     label: string;
     isPositive: boolean;
   };
+  previousValue?: number | string;
+  secondaryMetrics?: Array<{
+    label: string;
+    value: string | number;
+    trend?: 'up' | 'down' | 'neutral';
+  }>;
+  status?: 'normal' | 'warning' | 'critical' | 'success';
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 interface StatsCardsProps {
   cards: StatCard[];
   isLoading?: boolean;
   className?: string;
+  onCardAction?: (cardTitle: string) => void;
 }
 
 export const StatsCards: React.FC<StatsCardsProps> = ({ 
   cards, 
   isLoading = false,
-  className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+  className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6",
+  onCardAction
 }) => {
   if (isLoading) {
     return (
       <div className={className}>
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: cards.length || 6 }).map((_, i) => (
           <StatsCardSkeleton key={i} />
         ))}
       </div>
@@ -42,39 +52,24 @@ export const StatsCards: React.FC<StatsCardsProps> = ({
 
   return (
     <div className={className}>
-      {cards.map((card) => {
-        const Icon = card.icon;
-        return (
-          <Card key={card.title} className="transition-all hover:shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
-                {card.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${card.bgColor}`}>
-                <Icon className={`h-4 w-4 ${card.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {card.value}{card.suffix || ''}
-              </div>
-              {card.trend && (
-                <div className="mt-2 flex items-center text-sm">
-                  <Badge 
-                    variant={card.trend.isPositive ? "default" : "secondary"}
-                    className="text-xs"
-                  >
-                    {card.trend.isPositive ? '+' : ''}{card.trend.value}%
-                  </Badge>
-                  <span className="ml-2 text-muted-foreground">
-                    {card.trend.label}
-                  </span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+      {cards.map((card) => (
+        <MetricCard
+          key={card.title}
+          title={card.title}
+          value={`${card.value}${card.suffix || ''}`}
+          previousValue={card.previousValue ? `${card.previousValue}${card.suffix || ''}` : undefined}
+          change={card.trend ? {
+            value: card.trend.value,
+            period: card.trend.label,
+            trend: card.trend.isPositive ? 'up' : 'down'
+          } : undefined}
+          secondaryMetrics={card.secondaryMetrics}
+          icon={card.icon}
+          status={card.status}
+          actionLabel={card.actionLabel}
+          onAction={card.onAction || (onCardAction ? () => onCardAction(card.title) : undefined)}
+        />
+      ))}
     </div>
   );
 };

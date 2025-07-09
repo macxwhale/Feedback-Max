@@ -13,6 +13,7 @@ import LoginPage from "@/components/auth/LoginPage";
 import { AdminLoginPage } from "@/components/auth/AdminLoginPage";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { CreateOrganizationPage } from "@/components/org/CreateOrganizationPage";
+import { initializeServices } from "@/infrastructure/di/ServiceRegistry";
 import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
@@ -23,6 +24,9 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import AuthCallback from './pages/AuthCallback';
 
 const queryClient = new QueryClient();
+
+// Initialize services on app start
+initializeServices();
 
 function App() {
   return (

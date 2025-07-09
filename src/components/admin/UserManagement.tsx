@@ -6,7 +6,6 @@ import { SimpleUserManagementHeader } from './SimpleUserManagementHeader';
 import { MemberStats } from './MemberStats';
 import { EnhancedInviteUserModal } from './EnhancedInviteUserModal';
 import { PendingInvitations } from './PendingInvitations';
-import { PerformanceDashboard } from './performance/PerformanceDashboard';
 import { useRemoveUser } from '@/hooks/useUserInvitation';
 import { useRBAC } from '@/hooks/useRBAC';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -18,7 +17,6 @@ interface UserManagementProps {
   organizationName: string;
 }
 
-// Define the member type that matches what we expect
 interface Member {
   id: string;
   user_id: string;
@@ -75,7 +73,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     );
   }
 
-  // Check if user has permission to manage users
   if (!hasPermission('manage_users')) {
     return (
       <Alert variant="destructive">
@@ -92,12 +89,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     return ['admin', 'owner'].includes(role || '');
   }).length;
 
-  console.log('UserManagement rendered with:', {
-    userRole,
-    hasManageUsersPermission: hasPermission('manage_users'),
-    activeMembersCount: activeMembers.length,
-    pendingInvitationsCount
-  });
+  // Ensure we have the correct pending invitations count
+  const actualPendingCount = pendingInvitations?.length || 0;
 
   return (
     <div className="space-y-6">
@@ -109,16 +102,15 @@ export const UserManagement: React.FC<UserManagementProps> = ({
       <MemberStats
         activeMembersCount={activeMembers.length}
         adminsCount={adminsCount}
-        pendingInvitationsCount={pendingInvitationsCount}
+        pendingInvitationsCount={actualPendingCount}
       />
 
       <Tabs defaultValue="members" className="w-full">
         <TabsList>
           <TabsTrigger value="members">Active Members ({activeMembers.length})</TabsTrigger>
           <TabsTrigger value="invitations">
-            Pending Invitations ({pendingInvitationsCount})
+            Pending Invitations ({actualPendingCount})
           </TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
         </TabsList>
         
         <TabsContent value="members">
@@ -137,10 +129,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({
             loading={invitationsLoading}
             onCancelInvitation={handleCancelInvitation}
           />
-        </TabsContent>
-
-        <TabsContent value="performance">
-          <PerformanceDashboard />
         </TabsContent>
       </Tabs>
     </div>

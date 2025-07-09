@@ -1,28 +1,26 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { getEnhancedRoleBadge } from '@/utils/enhancedRoleUtils';
+import { getRoleConfig } from '@/utils/roleManagement';
 
 interface EnhancedRoleBadgeProps {
   role: string;
-  showDescription?: boolean;
+  showIcon?: boolean;
+  className?: string;
 }
 
 export const EnhancedRoleBadge: React.FC<EnhancedRoleBadgeProps> = ({ 
   role, 
-  showDescription = false 
+  showIcon = false, 
+  className = '' 
 }) => {
-  const { variant, icon: Icon, label, description } = getEnhancedRoleBadge(role);
+  const config = getRoleConfig(role);
+  const IconComponent = config.icon;
 
   return (
-    <div className="flex flex-col gap-1">
-      <Badge variant={variant} className="flex items-center gap-1 w-fit">
-        <Icon className="w-3 h-3" />
-        {label}
-      </Badge>
-      {showDescription && (
-        <span className="text-xs text-gray-500">{description}</span>
-      )}
-    </div>
+    <Badge variant={config.variant} className={className}>
+      {showIcon && <IconComponent className="w-3 h-3 mr-1" />}
+      {config.label}
+    </Badge>
   );
 };

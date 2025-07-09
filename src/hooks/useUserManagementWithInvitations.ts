@@ -13,7 +13,7 @@ export const useUserManagementWithInvitations = (organizationId: string) => {
   const cancelInvitationMutation = useCancelInvitation();
 
   const handleCancelInvitation = (invitationId: string) => {
-    cancelInvitationMutation.mutate({ invitationId });
+    cancelInvitationMutation.mutate(invitationId);
   };
 
   return {

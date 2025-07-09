@@ -9,9 +9,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { EnhancedRoleBadge } from './EnhancedRoleBadge';
 import { EnhancedRoleSelector } from './EnhancedRoleSelector';
 import { UserAvatar } from './UserAvatar';
-import { formatDate, getStatusBadgeVariant } from '@/utils/userManagementUtils';
+import { formatDate, getStatusBadgeVariant } from '@/utils/roleManagement';
 import { useEnhancedPermissions } from '@/hooks/useEnhancedPermissions';
-import { canManageRole } from '@/utils/enhancedRoleUtils';
+import { canManageRole } from '@/utils/roleManagement';
 import { Badge } from '@/components/ui/badge';
 
 interface Member {

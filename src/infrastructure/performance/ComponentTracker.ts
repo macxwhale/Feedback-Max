@@ -1,137 +1,90 @@
 
+import React from 'react';
+
 /**
  * Component Performance Tracker
- * React-specific performance tracking utilities
+ * Tracks React component render times and re-renders
  */
 
-import React, { useEffect, useRef } from 'react';
-import { metricsAggregator } from './MetricsAggregator';
-import { logger } from '@/utils/logger';
+interface ComponentMetric {
+  componentName: string;
+  renderTime: number;
+  rerenderCount: number;
+  timestamp: number;
+  props?: Record<string, unknown>;
+}
 
-/**
- * Hook for tracking component render performance
- */
-export const useComponentPerformance = (componentName: string) => {
-  const renderStartRef = useRef<number>();
-  const mountTimeRef = useRef<number>();
+class ComponentTrackerClass {
+  private metrics: ComponentMetric[] = [];
+  private renderCounts = new Map<string, number>();
 
-  useEffect(() => {
-    mountTimeRef.current = performance.now();
+  trackRender(componentName: string, renderTime: number, props?: Record<string, unknown>): void {
+    const currentCount = this.renderCounts.get(componentName) || 0;
+    this.renderCounts.set(componentName, currentCount + 1);
+
+    this.metrics.push({
+      componentName,
+      renderTime,
+      rerenderCount: currentCount + 1,
+      timestamp: Date.now(),
+      props: props ? { ...props } : undefined,
+    });
+
+    // Keep only recent metrics to prevent memory leaks
+    if (this.metrics.length > 1000) {
+      this.metrics = this.metrics.slice(-500);
+    }
+  }
+
+  getMetrics(): ComponentMetric[] {
+    return [...this.metrics];
+  }
+
+  getComponentSummary(): Record<string, { 
+    avgRenderTime: number; 
+    totalRenders: number; 
+    maxRenderTime: number;
+  }> {
+    const summary: Record<string, { times: number[]; count: number }> = {};
+    
+    this.metrics.forEach(metric => {
+      if (!summary[metric.componentName]) {
+        summary[metric.componentName] = { times: [], count: 0 };
+      }
+      summary[metric.componentName].times.push(metric.renderTime);
+      summary[metric.componentName].count++;
+    });
+
+    const result: Record<string, { avgRenderTime: number; totalRenders: number; maxRenderTime: number }> = {};
+    
+    Object.entries(summary).forEach(([name, data]) => {
+      const times = data.times;
+      result[name] = {
+        avgRenderTime: times.reduce((a, b) => a + b, 0) / times.length,
+        totalRenders: data.count,
+        maxRenderTime: Math.max(...times),
+      };
+    });
+
+    return result;
+  }
+
+  clearMetrics(): void {
+    this.metrics = [];
+    this.renderCounts.clear();
+  }
+}
+
+export const ComponentTracker = new ComponentTrackerClass();
+
+// React hook for tracking component performance
+export const useComponentTracker = (componentName: string, props?: Record<string, unknown>) => {
+  React.useEffect(() => {
+    const startTime = performance.now();
     
     return () => {
-      if (mountTimeRef.current) {
-        const unmountTime = performance.now() - mountTimeRef.current;
-        logger.debug('Component lifecycle', {
-          component: componentName,
-          totalMountTime: unmountTime,
-        });
-      }
+      const endTime = performance.now();
+      ComponentTracker.trackRender(componentName, endTime - startTime, props);
     };
-  }, [componentName]);
-
-  const startRender = () => {
-    renderStartRef.current = performance.now();
-  };
-
-  const endRender = () => {
-    if (renderStartRef.current) {
-      const renderTime = performance.now() - renderStartRef.current;
-      metricsAggregator.trackComponent(componentName, renderTime);
-      
-      if (renderTime > 16) {
-        logger.warn('Slow component render', {
-          component: componentName,
-          renderTime,
-        });
-      }
-    }
-  };
-
-  return { startRender, endRender };
+  });
 };
-
-/**
- * Higher-order component for automatic performance tracking
- */
-export const withPerformanceTracking = <P extends object>(
-  WrappedComponent: React.ComponentType<P>,
-  componentName?: string
-) => {
-  const TrackedComponent = (props: P) => {
-    const name = componentName || WrappedComponent.displayName || WrappedComponent.name;
-    const { startRender, endRender } = useComponentPerformance(name);
-
-    useEffect(() => {
-      startRender();
-      endRender();
-    });
-
-    return React.createElement(WrappedComponent, props);
-  };
-
-  TrackedComponent.displayName = `withPerformanceTracking(${
-    componentName || WrappedComponent.displayName || WrappedComponent.name
-  })`;
-
-  return TrackedComponent;
-};
-
-/**
- * Performance boundary component for error tracking
- */
-interface PerformanceBoundaryProps {
-  children: React.ReactNode;
-  componentName: string;
-  fallback?: React.ComponentType<{ error: Error }>;
-}
-
-interface PerformanceBoundaryState {
-  hasError: boolean;
-  error?: Error;
-}
-
-export class PerformanceBoundary extends React.Component<
-  PerformanceBoundaryProps,
-  PerformanceBoundaryState
-> {
-  constructor(props: PerformanceBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: Error): PerformanceBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    logger.error('Component performance boundary caught error', {
-      component: this.props.componentName,
-      error: error.message,
-      componentStack: errorInfo.componentStack,
-    });
-
-    // Track error in metrics
-    metricsAggregator.trackComponent(
-      `${this.props.componentName}_error`,
-      performance.now()
-    );
-  }
-
-  render() {
-    if (this.state.hasError) {
-      const FallbackComponent = this.props.fallback;
-      if (FallbackComponent && this.state.error) {
-        return React.createElement(FallbackComponent, { error: this.state.error });
-      }
-      
-      return React.createElement(
-        'div',
-        { className: 'p-4 text-center text-red-600' },
-        React.createElement('h2', null, 'Component Error'),
-        React.createElement('p', null, `Something went wrong in ${this.props.componentName}`)
-      );
-    }
-
-    return this.props.children;
-  }
-}

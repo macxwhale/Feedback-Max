@@ -1,222 +1,223 @@
 
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { useOrganization } from '@/context/OrganizationContext';
 import { EnhancedDashboardLayout } from './dashboard/EnhancedDashboardLayout';
-import { StatsGrid } from '@/components/dashboard/StatsGrid';
 import { FloatingActionButton, ScrollToTopFAB } from '@/components/ui/floating-action-button';
-import { H1, H2, Body } from '@/components/ui/typography';
 import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
-import { getOrganizationStatsEnhanced } from '@/services/organizationQueries';
-import { useAnalyticsData } from '@/hooks/useAnalyticsData';
-import { OrganizationStats } from '@/types/organizationStats';
-import { Plus, Users, MessageSquare, Activity, Star, TrendingUp } from 'lucide-react';
+import { usePerformanceOptimization } from '@/hooks/usePerformanceOptimization';
+import { Plus } from 'lucide-react';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
-// Tab components
-import MembersTab from './dashboard/tabs/MembersTab';
-import { FeedbackTab } from './dashboard/tabs/FeedbackTab';
-import { QuestionsTab } from './dashboard/tabs/QuestionsTab';
-import { SettingsTab } from './dashboard/tabs/SettingsTab';
-import { IntegrationsTab } from './dashboard/tabs/IntegrationsTab';
-import { SentimentTab } from './dashboard/tabs/SentimentTab';
-import { PerformanceTab } from './dashboard/tabs/PerformanceTab';
-import { CustomerInsightsTab } from './dashboard/tabs/CustomerInsightsTab';
+// Data Provider
+import { DashboardDataProvider, useDashboardData } from './dashboard/DashboardDataProvider';
 
-// Import analytics components
-import { AnalyticsTable } from './dashboard/AnalyticsTable';
-import { AnalyticsInsights } from './dashboard/AnalyticsInsights';
-import { SessionTrendsChart } from './dashboard/charts/SessionTrendsChart';
+// Lazy load tab components for better performance with error handling
+const DashboardOverviewContent = React.lazy(() => 
+  import('./dashboard/DashboardOverviewContent').then(module => ({ default: module.DashboardOverviewContent })).catch(err => {
+    console.error('Failed to load DashboardOverviewContent:', err);
+    return { default: () => <div className="p-4">Error loading overview content</div> };
+  })
+);
 
-export const OrganizationAdminDashboard: React.FC = () => {
+const MembersTab = React.lazy(() => 
+  import('./dashboard/tabs/MembersTab').then(module => ({ default: module.default })).catch(err => {
+    console.error('Failed to load MembersTab:', err);
+    return { default: () => <div className="p-4">Error loading members tab</div> };
+  })
+);
+
+const FeedbackTab = React.lazy(() => 
+  import('./dashboard/tabs/FeedbackTab').then(module => ({ default: module.FeedbackTab })).catch(err => {
+    console.error('Failed to load FeedbackTab:', err);
+    return { default: () => <div className="p-4">Error loading feedback tab</div> };
+  })
+);
+
+const QuestionsTab = React.lazy(() => 
+  import('./dashboard/tabs/QuestionsTab').then(module => ({ default: module.QuestionsTab })).catch(err => {
+    console.error('Failed to load QuestionsTab:', err);
+    return { default: () => <div className="p-4">Error loading questions tab</div> };
+  })
+);
+
+const SettingsTab = React.lazy(() => 
+  import('./dashboard/tabs/SettingsTab').then(module => ({ default: module.SettingsTab })).catch(err => {
+    console.error('Failed to load SettingsTab:', err);
+    return { default: () => <div className="p-4">Error loading settings tab</div> };
+  })
+);
+
+const IntegrationsTab = React.lazy(() => 
+  import('./dashboard/tabs/IntegrationsTab').then(module => ({ default: module.IntegrationsTab })).catch(err => {
+    console.error('Failed to load IntegrationsTab:', err);
+    return { default: () => <div className="p-4">Error loading integrations tab</div> };
+  })
+);
+
+const SentimentTab = React.lazy(() => 
+  import('./dashboard/tabs/SentimentTab').then(module => ({ default: module.SentimentTab })).catch(err => {
+    console.error('Failed to load SentimentTab:', err);
+    return { default: () => <div className="p-4">Error loading sentiment tab</div> };
+  })
+);
+
+const PerformanceTab = React.lazy(() => 
+  import('./dashboard/tabs/PerformanceTab').then(module => ({ default: module.PerformanceTab })).catch(err => {
+    console.error('Failed to load PerformanceTab:', err);
+    return { default: () => <div className="p-4">Error loading performance tab</div> };
+  })
+);
+
+const CustomerInsightsTab = React.lazy(() => 
+  import('./dashboard/tabs/CustomerInsightsTab').then(module => ({ default: module.CustomerInsightsTab })).catch(err => {
+    console.error('Failed to load CustomerInsightsTab:', err);
+    return { default: () => <div className="p-4">Error loading customer insights tab</div> };
+  })
+);
+
+const DashboardContent: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { organization, loading: orgLoading } = useOrganization();
   const [activeTab, setActiveTab] = useState('overview');
   const { isMobile } = useResponsiveDesign();
+  
+  console.log('DashboardContent rendering with slug:', slug);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['organization-stats', organization?.id],
-    queryFn: () => getOrganizationStatsEnhanced(organization!.id),
-    enabled: !!organization?.id,
+  // Performance optimization with error handling
+  const { createDebouncedFunction } = usePerformanceOptimization({
+    enableMemoryCleanup: true,
+    debounceDelay: 250
   });
 
-  const { data: analyticsData, isLoading: analyticsLoading } = useAnalyticsData(organization?.id || '');
+  // Debounce tab changes to prevent rapid switching
+  const debouncedSetActiveTab = createDebouncedFunction(setActiveTab);
 
-  if (orgLoading || !organization) {
-    return <div>Loading...</div>;
+  let organization, stats, isLoading;
+  
+  try {
+    const dashboardData = useDashboardData();
+    organization = dashboardData.organization;
+    stats = dashboardData.stats;
+    isLoading = dashboardData.isLoading;
+  } catch (error) {
+    console.error('Error getting dashboard data:', error);
+    organization = null;
+    stats = null;
+    isLoading = false;
   }
 
-  // Safe type conversion with proper fallbacks
-  const typedStats: OrganizationStats | null = stats ? (stats as unknown as OrganizationStats) : null;
-
-  const dashboardStats = [
-    {
-      id: 'members',
-      title: 'Active Members',
-      value: typedStats?.active_members ?? 0,
-      icon: Users,
-      trend: 'up' as const,
-      trendValue: 12,
-      color: 'blue' as const,
-    },
-    {
-      id: 'responses',
-      title: 'Total Responses',
-      value: typedStats?.total_responses ?? 0,
-      icon: MessageSquare,  
-      trend: 'up' as const,
-      trendValue: 8,
-      color: 'green' as const,
-    },
-    {
-      id: 'sessions',
-      title: 'Active Sessions',
-      value: typedStats?.total_sessions ?? 0,
-      icon: Activity,
-      color: 'purple' as const,
-    },
-    {
-      id: 'rating',
-      title: 'Avg Rating',
-      value: typedStats?.avg_session_score ?? 0,
-      format: 'rating' as const,
-      icon: Star,
-      color: 'orange' as const,
-    },
-  ];
-
   const renderTabContent = () => {
-    switch (activeTab) {
-      case 'members':
-        return <MembersTab organization={organization} />;
-      case 'feedback':
-        return <FeedbackTab organizationId={organization.id} />;
-      case 'questions':
-        return <QuestionsTab />;
-      case 'settings':
-        return <SettingsTab organization={organization} />;
-      case 'integrations':
-        return <IntegrationsTab />;
-      case 'sentiment':
-        return <SentimentTab organizationId={organization.id} />;
-      case 'performance':
-        return <PerformanceTab organizationId={organization.id} />;
-      case 'customer-insights':
-        return <CustomerInsightsTab organizationId={organization.id} />;
-      default:
-        return (
-          <div className="space-y-6">
-            <div>
-              <H1 className="mb-2">Analytics Dashboard</H1>
-              <Body>Here's what's happening with {organization.name} today.</Body>
-            </div>
-            
-            <StatsGrid
-              stats={dashboardStats}
-              isLoading={statsLoading}
-              columns={4}
-            />
+    const tabProps = {
+      organizationId: organization?.id || '',
+      organization
+    };
 
-            {/* Trend Analysis Chart */}
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <H2 className="mb-4">Trend Analysis</H2>
-              <Body className="text-gray-600 mb-4">Key metrics over the selected period</Body>
-              <SessionTrendsChart isLoading={statsLoading} />
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Analytics Dashboard Table */}
-              <div className="bg-white rounded-lg shadow-sm border">
-                <div className="p-6 border-b">
-                  <H2>Analytics Dashboard</H2>
-                </div>
-                <AnalyticsTable 
-                  questions={analyticsData?.questions || []}
-                  categories={analyticsData?.categories || []}
-                  summary={analyticsData?.summary || {
-                    total_questions: typedStats?.total_questions ?? 0,
-                    total_responses: typedStats?.total_responses ?? 0,
-                    overall_avg_score: typedStats?.avg_session_score ?? 0,
-                    overall_completion_rate: typedStats?.completed_sessions && typedStats?.total_sessions 
-                      ? Math.round((typedStats.completed_sessions / typedStats.total_sessions) * 100)
-                      : 0
-                  }}
-                />
-              </div>
-              
-              {/* Analytics Insights */}
-              <div className="bg-white rounded-lg shadow-sm border">
-                <div className="p-6 border-b">
-                  <H2>Analytics Insights</H2>
-                </div>
-                <div className="p-6">
-                  <AnalyticsInsights 
-                    stats={typedStats ? {
-                      total_questions: typedStats.total_questions,
-                      total_responses: typedStats.total_responses,
-                      total_sessions: typedStats.total_sessions,
-                      completed_sessions: typedStats.completed_sessions,
-                      active_members: typedStats.active_members,
-                      avg_session_score: typedStats.avg_session_score,
-                      growth_metrics: typedStats.growth_metrics || {
-                        sessions_this_month: 0,
-                        sessions_last_month: 0,
-                        growth_rate: null
-                      }
-                    } : undefined}
-                    isLoading={statsLoading}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <H2 className="mb-4">Quick Actions</H2>
-              <div className="space-y-3">
-                <button
-                  onClick={() => setActiveTab('members')}
-                  className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Users className="w-5 h-5 text-blue-600" />
-                    <span>Invite new members</span>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setActiveTab('questions')}
-                  className="w-full text-left p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <MessageSquare className="w-5 h-5 text-green-600" />
-                    <span>Create new question</span>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-        );
+    try {
+      switch (activeTab) {
+        case 'members':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <MembersTab {...tabProps} />
+            </React.Suspense>
+          );
+        case 'feedback':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <FeedbackTab organizationId={tabProps.organizationId} />
+            </React.Suspense>
+          );
+        case 'questions':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <QuestionsTab />
+            </React.Suspense>
+          );
+        case 'settings':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <SettingsTab {...tabProps} />
+            </React.Suspense>
+          );
+        case 'integrations':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <IntegrationsTab />
+            </React.Suspense>
+          );
+        case 'sentiment':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <SentimentTab organizationId={tabProps.organizationId} />
+            </React.Suspense>
+          );
+        case 'performance':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <PerformanceTab organizationId={tabProps.organizationId} />
+            </React.Suspense>
+          );
+        case 'customer-insights':
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <CustomerInsightsTab organizationId={tabProps.organizationId} />
+            </React.Suspense>
+          );
+        default:
+          return (
+            <React.Suspense fallback={<div className="animate-pulse h-64 bg-gray-200 rounded"></div>}>
+              <DashboardOverviewContent onTabChange={debouncedSetActiveTab} />
+            </React.Suspense>
+          );
+      }
+    } catch (error) {
+      console.error('Error rendering tab content:', error);
+      return <div className="p-4">Error loading tab content</div>;
     }
   };
 
+  if (!organization && !isLoading) {
+    console.log('No organization found and not loading');
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h2 className="text-xl font-semibold">Organization Not Found</h2>
+          <p className="text-gray-600">The requested organization could not be found.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-300 rounded w-48"></div>
+          <div className="h-4 bg-gray-300 rounded w-32"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <>
+    <ErrorBoundary
+      title="Dashboard Error"
+      description="There was an error loading the dashboard. Please try refreshing the page."
+    >
       <EnhancedDashboardLayout
-        organizationName={organization.name}
-        organizationId={organization.id}
+        organizationName={organization?.name || 'Organization'}
+        organizationId={organization?.id || ''}
         organizationSlug={slug || ''}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
-        stats={typedStats}
-        isLoading={statsLoading}
+        onTabChange={debouncedSetActiveTab}
+        stats={stats}
+        isLoading={isLoading}
       >
         {renderTabContent()}
       </EnhancedDashboardLayout>
       
-      {/* Floating Action Button for mobile */}
+      {/* Floating Action Button for mobile quick actions */}
       {isMobile && activeTab === 'overview' && (
         <FloatingActionButton
-          onClick={() => setActiveTab('members')}
+          onClick={() => debouncedSetActiveTab('members')}
           extended
         >
           <Plus className="w-5 h-5" />
@@ -225,6 +226,21 @@ export const OrganizationAdminDashboard: React.FC = () => {
       )}
       
       <ScrollToTopFAB />
-    </>
+    </ErrorBoundary>
+  );
+};
+
+export const OrganizationAdminDashboard: React.FC = () => {
+  console.log('OrganizationAdminDashboard component mounted');
+  
+  return (
+    <ErrorBoundary
+      title="Dashboard Error"
+      description="There was an error initializing the dashboard."
+    >
+      <DashboardDataProvider>
+        <DashboardContent />
+      </DashboardDataProvider>
+    </ErrorBoundary>
   );
 };

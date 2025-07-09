@@ -1,4 +1,3 @@
-
 /**
  * System Performance Console
  * Comprehensive performance management interface for administrators
@@ -249,7 +248,7 @@ export const SystemPerformanceConsole: React.FC = () => {
                           {formatMetric(component.renderTime, 'ms')}
                         </Badge>
                         <Badge variant="outline">
-                          {component.rerenderCount} renders
+                          {component.renderCount} renders
                         </Badge>
                       </div>
                     </div>

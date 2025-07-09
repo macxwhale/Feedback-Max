@@ -1,25 +1,25 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { hasPermission, canManageRole, type EnhancedRole } from '@/utils/enhancedRoleUtils';
+import { hasPermission, canManageRole, type Role } from '@/utils/roleManagement';
 
 export interface RBACContext {
   userId: string;
   organizationId: string;
-  userRole?: EnhancedRole;
+  userRole?: Role;
   isAdmin?: boolean;
 }
 
 export interface PermissionResult {
   allowed: boolean;
   reason?: string;
-  requiredRole?: EnhancedRole;
+  requiredRole?: Role;
 }
 
 export class RBACService {
-  private static roleCache = new Map<string, { role: EnhancedRole; timestamp: number }>();
+  private static roleCache = new Map<string, { role: Role; timestamp: number }>();
   private static readonly CACHE_TTL = 5 * 60 * 1000;
 
-  static async getUserRole(userId: string, organizationId: string): Promise<EnhancedRole | null> {
+  static async getUserRole(userId: string, organizationId: string): Promise<Role | null> {
     const cacheKey = `${userId}-${organizationId}`;
     const cached = this.roleCache.get(cacheKey);
     
@@ -37,7 +37,7 @@ export class RBACService {
 
       if (error || !data) return null;
 
-      const role = data.enhanced_role as EnhancedRole;
+      const role = data.enhanced_role as Role;
       this.roleCache.set(cacheKey, { role, timestamp: Date.now() });
       return role;
     } catch (error) {
@@ -97,8 +97,8 @@ export class RBACService {
     }
   }
 
-  private static getMinimumRoleForPermission(permission: string): EnhancedRole {
-    const permissionRoleMap: Record<string, EnhancedRole> = {
+  private static getMinimumRoleForPermission(permission: string): Role {
+    const permissionRoleMap: Record<string, Role> = {
       'view_analytics': 'viewer',
       'export_data': 'analyst',
       'manage_questions': 'analyst',
@@ -120,7 +120,7 @@ export class RBACService {
 }
 
 export class RBACError extends Error {
-  constructor(message: string, public requiredRole?: EnhancedRole) {
+  constructor(message: string, public requiredRole?: Role) {
     super(message);
     this.name = 'RBACError';
   }

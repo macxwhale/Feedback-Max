@@ -19,6 +19,8 @@ export const SmsCampaigns: React.FC = () => {
     phoneNumbersLoading,
     phoneNumbersError,
     createCampaignMutation,
+    updateCampaignMutation,
+    deleteCampaignMutation,
     sendCampaignMutation,
     campaignControlMutation,
     organization
@@ -33,6 +35,14 @@ export const SmsCampaigns: React.FC = () => {
         setShowCreateForm(false);
       }
     });
+  };
+
+  const handleEditCampaign = (campaignId: string, name: string, template: string) => {
+    updateCampaignMutation.mutate({ campaignId, name, template });
+  };
+
+  const handleDeleteCampaign = (campaignId: string) => {
+    deleteCampaignMutation.mutate(campaignId);
   };
 
   const handleSendCampaign = (campaignId: string) => {
@@ -75,14 +85,6 @@ export const SmsCampaigns: React.FC = () => {
     toast({ 
       title: "Scheduling feature coming soon", 
       description: "Campaign scheduling will be available in the next update." 
-    });
-  };
-
-  const handleDeleteCampaign = (campaignId: string) => {
-    // TODO: Implement delete functionality
-    toast({ 
-      title: "Delete feature coming soon", 
-      description: "Campaign deletion will be available in the next update." 
     });
   };
 
@@ -174,9 +176,12 @@ export const SmsCampaigns: React.FC = () => {
                   onResume={handleResumeCampaign}
                   onDuplicate={handleDuplicateCampaign}
                   onSchedule={handleScheduleCampaign}
+                  onEdit={handleEditCampaign}
                   onDelete={handleDeleteCampaign}
                   onCreateNew={() => setShowCreateForm(true)}
                   isLoading={sendCampaignMutation.isPending || campaignControlMutation.isPending}
+                  isEditLoading={updateCampaignMutation.isPending}
+                  isDeleteLoading={deleteCampaignMutation.isPending}
                 />
               </div>
             </div>

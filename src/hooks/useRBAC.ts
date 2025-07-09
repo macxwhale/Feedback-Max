@@ -3,10 +3,10 @@ import { useAuth } from '@/components/auth/AuthWrapper';
 import { useQuery } from '@tanstack/react-query';
 import { RBACService, type RBACContext, type PermissionResult } from '@/services/rbacService';
 import { useCallback, useMemo } from 'react';
-import { hasPermission, canManageRole } from '@/utils/enhancedRoleUtils';
+import { hasPermission, canManageRole } from '@/utils/roleManagement';
 
 export const useRBAC = (organizationId?: string) => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isOrgAdmin } = useAuth();
 
   const context = useMemo<RBACContext | null>(() => {
     if (!user?.id || !organizationId) return null;
@@ -71,19 +71,21 @@ export const useRBAC = (organizationId?: string) => {
       console.log('Permission check failed: no context or role', { context: !!context, userRole });
       return false;
     }
-    if (isAdmin) {
-      console.log('Permission granted: system admin');
+    
+    // System admin and org admin should have access to most permissions
+    if (isAdmin || isOrgAdmin) {
+      console.log('Permission granted: admin access');
       return true;
     }
     
     const allowed = hasPermission(userRole, permission);
     console.log('Permission check:', { permission, userRole, allowed });
     return allowed;
-  }, [context, userRole, isAdmin]);
+  }, [context, userRole, isAdmin, isOrgAdmin]);
 
   const canManageUser = useCallback(async (targetUserId: string): Promise<boolean> => {
     if (!context || !userRole) return false;
-    if (isAdmin) return true;
+    if (isAdmin || isOrgAdmin) return true;
 
     try {
       const targetRole = await RBACService.getUserRole(targetUserId, context.organizationId);
@@ -94,7 +96,7 @@ export const useRBAC = (organizationId?: string) => {
       console.error('Error checking user management permission:', error);
       return false;
     }
-  }, [context, userRole, isAdmin]);
+  }, [context, userRole, isAdmin, isOrgAdmin]);
 
   return {
     userRole,

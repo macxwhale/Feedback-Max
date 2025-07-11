@@ -15,7 +15,21 @@ export function useAuthFlow() {
   const [error, setError] = useState("");
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const { signIn, signUp, updatePassword } = useAuth();
+  // Add error boundary for auth context
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error('Auth context not available:', error);
+    // Provide fallback functions
+    authContext = {
+      signIn: async () => ({ error: { message: 'Authentication not available' } }),
+      signUp: async () => ({ error: { message: 'Authentication not available' } }),
+      updatePassword: async () => ({ error: { message: 'Authentication not available' } })
+    };
+  }
+
+  const { signIn, signUp, updatePassword } = authContext;
   const passwordResetMutation = usePasswordReset();
   const { processInvitation, processing: invitationProcessing } = useInvitationProcessor();
   const navigate = useNavigate();

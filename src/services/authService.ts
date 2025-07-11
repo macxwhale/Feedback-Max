@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { AuthError } from '@supabase/supabase-js';
 import { createAuthRedirectUrl } from '@/utils/authUtils';
@@ -115,17 +116,17 @@ export class AuthService {
     try {
       console.log('Determining redirect path for user:', user.email);
       
-      // Add a delay to ensure database consistency
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Extended delay and retry logic for invitation processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Check for existing organization membership with retries
+      // Check for existing organization membership with more retries
       let userOrgs = null;
       let attempts = 0;
-      const maxAttempts = 3;
+      const maxAttempts = 5; // Increased from 3
       
       while (!userOrgs && attempts < maxAttempts) {
         attempts++;
-        console.log(`Checking organization membership, attempt ${attempts}`);
+        console.log(`Checking organization membership, attempt ${attempts}/${maxAttempts}`);
         
         const { data, error } = await supabase
           .from('organization_users')
@@ -139,12 +140,15 @@ export class AuthService {
         
         if (data && data.length > 0) {
           userOrgs = data;
+          console.log('Found organization membership:', userOrgs);
           break;
         }
         
-        // Wait a bit before retrying
+        // Progressive delay - wait longer on each retry
         if (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          const delayMs = attempts * 1500; // 1.5s, 3s, 4.5s, 6s
+          console.log(`No organization found, waiting ${delayMs}ms before retry ${attempts + 1}`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
         }
       }
 
@@ -168,7 +172,7 @@ export class AuthService {
       }
 
       // Default to organization creation for authenticated users without organizations
-      console.log('No organization found, redirecting to:', '/create-organization');
+      console.log('No organization found after all retries, redirecting to:', '/create-organization');
       return '/create-organization';
     } catch (error) {
       console.error('Post-auth redirect error:', error);

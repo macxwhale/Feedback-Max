@@ -1,8 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedLoadingSpinner } from '@/components/admin/dashboard/EnhancedLoadingSpinner';
 import { AuthService } from '@/services/authService';
+import { useInvitationProcessor } from '@/hooks/useInvitationProcessor';
 import type { Role } from '@/utils/roleManagement';
 
 const AuthCallback: React.FC = () => {
@@ -10,6 +12,7 @@ const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { processInvitation } = useInvitationProcessor();
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -44,23 +47,29 @@ const AuthCallback: React.FC = () => {
           console.log('Auth callback - Is password reset:', isPasswordReset);
 
           // Handle password reset flow
-          if (isPasswordReset) {
-            console.log('Processing password reset');
+          if (isPasswordReset && !isInvitation) {
+            console.log('Processing standard password reset');
             navigate('/auth?reset=true');
             return;
           }
 
           // Handle invitation flow for new users (email confirmation from invitation)
           if (isInvitation && userEmail && orgSlugFromUrl && isEmailConfirmation) {
-            console.log('Processing invitation signup for:', userEmail, 'to org:', orgSlugFromUrl);
-            // For new users who signed up via invitation, redirect to password reset to set their password
+            console.log('Processing invitation signup - redirecting to password setup');
             navigate('/auth?reset=true&invitation=true&org=' + orgSlugFromUrl);
             return;
           }
 
-          // Handle invitation flow for existing users
-          if (isInvitation && userEmail && orgSlugFromUrl && !isEmailConfirmation) {
-            console.log('Processing invitation for existing user:', userEmail, 'to org:', orgSlugFromUrl);
+          // Handle invitation flow for password reset completion
+          if (isInvitation && userEmail && orgSlugFromUrl && isPasswordReset) {
+            console.log('Processing invitation after password reset - adding user to organization');
+            await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
+            return;
+          }
+
+          // Handle invitation flow for existing users (direct login)
+          if (isInvitation && userEmail && orgSlugFromUrl && !isEmailConfirmation && !isPasswordReset) {
+            console.log('Processing invitation for existing user login');
             await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
             return;
           }
@@ -90,6 +99,8 @@ const AuthCallback: React.FC = () => {
 
     const handleInvitationFlow = async (data: any, orgSlugFromUrl: string, userEmail: string) => {
       try {
+        console.log('Starting invitation processing for:', userEmail, 'to org:', orgSlugFromUrl);
+        
         // Validate organization slug before querying
         if (!isValidSlug(orgSlugFromUrl)) {
           console.error('Invalid organization slug:', orgSlugFromUrl);
@@ -98,78 +109,17 @@ const AuthCallback: React.FC = () => {
           return;
         }
 
-        // Get organization details
-        const { data: organization } = await supabase
-          .from('organizations')
-          .select('id, name, slug')
-          .eq('slug', orgSlugFromUrl)
-          .single();
-
-        if (!organization) {
-          console.error('Organization not found:', orgSlugFromUrl);
-          setError('Organization not found');
-          setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Organization not found')), 2000);
-          return;
-        }
-
-        // Get invitation details from user metadata
-        const userMetadata = data.session.user.user_metadata;
-        const role = userMetadata?.role || 'member';
-        const enhancedRole = userMetadata?.enhanced_role || role;
-
-        console.log('Invitation details from metadata:', { role, enhancedRole });
-
-        // Check if user is already in organization
-        const { data: existingMembership } = await supabase
-          .from('organization_users')
-          .select('id')
-          .eq('user_id', data.session.user.id)
-          .eq('organization_id', organization.id)
-          .maybeSingle();
-
-        if (!existingMembership) {
-          // Add user to organization
-          const { error: addError } = await supabase
-            .from('organization_users')
-            .insert({
-              user_id: data.session.user.id,
-              organization_id: organization.id,
-              email: userEmail,
-              role: role,
-              enhanced_role: enhancedRole as Role,
-              status: 'active',
-              accepted_at: new Date().toISOString()
-            });
-
-          if (addError) {
-            console.error('Error adding user to organization:', addError);
-            setError('Failed to join organization');
-            setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to join organization')), 2000);
-            return;
-          }
-
-          console.log('User successfully added to organization');
+        // Use the invitation processor hook to handle the invitation
+        const result = await processInvitation(userEmail, orgSlugFromUrl, data.session.user.id);
+        
+        if (result.success) {
+          console.log('Invitation processed successfully, user should be redirected to org dashboard');
+          // The processInvitation hook handles the redirect, so we don't need to do anything else
         } else {
-          console.log('User already in organization');
+          console.error('Invitation processing failed:', result.error);
+          setError('Failed to process invitation: ' + result.error);
+          setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
         }
-
-        // Mark invitation as accepted
-        const { error: updateError } = await supabase
-          .from('user_invitations')
-          .update({ 
-            status: 'accepted',
-            updated_at: new Date().toISOString()
-          })
-          .eq('email', userEmail.toLowerCase().trim())
-          .eq('organization_id', organization.id);
-
-        if (updateError) {
-          console.warn('Could not update invitation status:', updateError);
-        }
-
-        // Redirect to organization dashboard
-        console.log('Redirecting to organization dashboard:', orgSlugFromUrl);
-        navigate(`/admin/${orgSlugFromUrl}`);
       } catch (error) {
         console.error('Error handling invitation flow:', error);
         setError('Failed to process invitation');
@@ -178,7 +128,7 @@ const AuthCallback: React.FC = () => {
     };
 
     handleAuthCallback();
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, processInvitation]);
 
   const isValidSlug = (slug: string): boolean => {
     // Check if slug looks like a valid organization slug

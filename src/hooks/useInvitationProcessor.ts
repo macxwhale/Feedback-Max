@@ -13,6 +13,7 @@ export function useInvitationProcessor() {
     setProcessing(true);
     
     try {
+      console.log('=== INVITATION PROCESSING START ===');
       console.log('Processing invitation for:', email, 'to org:', orgSlug, 'userId:', userId);
       
       // Get organization details
@@ -27,31 +28,44 @@ export function useInvitationProcessor() {
         throw new Error('Organization not found');
       }
 
+      console.log('Found organization:', organization);
+
       // Check if user is already in organization
       const { data: existingMembership } = await supabase
         .from('organization_users')
-        .select('id')
+        .select('id, role, status')
         .eq('user_id', userId)
         .eq('organization_id', organization.id)
         .maybeSingle();
 
       if (existingMembership) {
-        console.log('User already in organization, redirecting...');
+        console.log('User already in organization:', existingMembership);
+        
+        toast({
+          title: "Welcome back!",
+          description: `You're already a member of ${organization.name}`,
+        });
+        
         navigate(`/admin/${orgSlug}`);
         return { success: true, message: 'Already a member' };
       }
 
       // Get invitation details to determine role
-      const { data: invitation } = await supabase
+      const { data: invitation, error: invitationError } = await supabase
         .from('user_invitations')
-        .select('role, enhanced_role')
+        .select('id, role, enhanced_role, status')
         .eq('email', email.toLowerCase().trim())
         .eq('organization_id', organization.id)
-        .eq('status', 'pending')
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      console.log('Found invitation:', invitation, 'Error:', invitationError);
 
       const role = invitation?.role || 'member';
       const enhancedRole = invitation?.enhanced_role || 'member';
+
+      console.log('Adding user to organization with role:', role, 'enhanced_role:', enhancedRole);
 
       // Add user to organization
       const { error: addError } = await supabase
@@ -68,20 +82,29 @@ export function useInvitationProcessor() {
 
       if (addError) {
         console.error('Error adding user to organization:', addError);
-        throw new Error('Failed to join organization');
+        throw new Error('Failed to join organization: ' + addError.message);
       }
 
-      // Mark invitation as accepted
-      await supabase
-        .from('user_invitations')
-        .update({ 
-          status: 'accepted',
-          updated_at: new Date().toISOString()
-        })
-        .eq('email', email.toLowerCase().trim())
-        .eq('organization_id', organization.id);
+      console.log('Successfully added user to organization');
 
-      console.log('User successfully added to organization');
+      // Mark invitation as accepted if it exists
+      if (invitation) {
+        const { error: updateError } = await supabase
+          .from('user_invitations')
+          .update({ 
+            status: 'accepted',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', invitation.id);
+
+        if (updateError) {
+          console.warn('Could not update invitation status:', updateError);
+        } else {
+          console.log('Marked invitation as accepted');
+        }
+      }
+
+      console.log('=== INVITATION PROCESSING SUCCESS ===');
       
       toast({
         title: "Welcome!",
@@ -98,6 +121,7 @@ export function useInvitationProcessor() {
       return { success: true, message: 'Successfully joined organization' };
 
     } catch (error) {
+      console.error('=== INVITATION PROCESSING ERROR ===');
       console.error('Error processing invitation:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to process invitation';
       

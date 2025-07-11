@@ -7,6 +7,8 @@ export const useAnalyticsTableData = (organizationId: string) => {
   return useQuery({
     queryKey: ['analytics-table-data', organizationId],
     queryFn: async (): Promise<AnalyticsTableData> => {
+      console.log('Fetching analytics data for organization:', organizationId);
+
       // Fetch questions with analytics data
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
@@ -22,7 +24,10 @@ export const useAnalyticsTableData = (organizationId: string) => {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
-      if (questionsError) throw questionsError;
+      if (questionsError) {
+        console.error('Error fetching questions:', questionsError);
+        throw questionsError;
+      }
 
       // Fetch responses data with proper filtering
       const { data: responsesData, error: responsesError } = await supabase
@@ -39,7 +44,10 @@ export const useAnalyticsTableData = (organizationId: string) => {
         `)
         .eq('organization_id', organizationId);
 
-      if (responsesError) throw responsesError;
+      if (responsesError) {
+        console.error('Error fetching responses:', responsesError);
+        throw responsesError;
+      }
 
       // Fetch sessions data for comprehensive analytics
       const { data: sessionsData, error: sessionsError } = await supabase
@@ -56,7 +64,16 @@ export const useAnalyticsTableData = (organizationId: string) => {
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false });
 
-      if (sessionsError) throw sessionsError;
+      if (sessionsError) {
+        console.error('Error fetching sessions:', sessionsError);
+        throw sessionsError;
+      }
+
+      console.log('Raw data fetched:', {
+        questions: questionsData?.length || 0,
+        responses: responsesData?.length || 0,
+        sessions: sessionsData?.length || 0
+      });
 
       // Calculate accurate metrics
       const totalSessions = (sessionsData || []).length;
@@ -204,8 +221,11 @@ export const useAnalyticsTableData = (organizationId: string) => {
         const totalSessions = daySessions.length;
         const completedSessions = daySessions.filter(s => s.status === 'completed').length;
         const completionRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
-        const avgScore = daySessions.length > 0 
-          ? daySessions.reduce((sum, s) => sum + (s.total_score || 0), 0) / daySessions.length 
+        
+        // Calculate average score for the day
+        const completedWithScores = daySessions.filter(s => s.status === 'completed' && s.total_score !== null);
+        const avgScore = completedWithScores.length > 0 
+          ? completedWithScores.reduce((sum, s) => sum + (s.total_score || 0), 0) / completedWithScores.length 
           : 0;
 
         trendData.push({
@@ -217,7 +237,7 @@ export const useAnalyticsTableData = (organizationId: string) => {
         });
       });
 
-      return {
+      const analyticsResult = {
         questions,
         categories,
         summary: {
@@ -236,6 +256,9 @@ export const useAnalyticsTableData = (organizationId: string) => {
         },
         trendData
       };
+
+      console.log('Analytics result:', analyticsResult);
+      return analyticsResult;
     },
     enabled: !!organizationId,
     staleTime: 5 * 60 * 1000, // 5 minutes

@@ -18,17 +18,6 @@ export const FeedbackTrendsChart: React.FC<FeedbackTrendsChartProps> = ({
   data = [], 
   isLoading = false 
 }) => {
-  const mockData = [
-    { date: '2024-01', responses: 45, sessions: 12, avgScore: 4.2 },
-    { date: '2024-02', responses: 52, sessions: 15, avgScore: 4.1 },
-    { date: '2024-03', responses: 38, sessions: 10, avgScore: 4.5 },
-    { date: '2024-04', responses: 61, sessions: 18, avgScore: 4.3 },
-    { date: '2024-05', responses: 49, sessions: 14, avgScore: 4.4 },
-    { date: '2024-06', responses: 67, sessions: 20, avgScore: 4.6 }
-  ];
-
-  const chartData = data.length > 0 ? data : mockData;
-
   if (isLoading) {
     return (
       <Card>
@@ -45,6 +34,30 @@ export const FeedbackTrendsChart: React.FC<FeedbackTrendsChartProps> = ({
     );
   }
 
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2" />
+            Feedback Trends
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex items-center justify-center text-center">
+            <div>
+              <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 font-medium">No feedback trends data available</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Trends will appear here once you have feedback responses over time.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -56,7 +69,7 @@ export const FeedbackTrendsChart: React.FC<FeedbackTrendsChartProps> = ({
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
+            <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />

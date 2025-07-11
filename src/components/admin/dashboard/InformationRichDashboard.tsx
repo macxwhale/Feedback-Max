@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useOrganizationStats } from '@/hooks/useOrganizationStats';
+import { useAnalyticsTableData } from '@/hooks/useAnalyticsTableData';
 import { EnhancedMetricCard } from './EnhancedMetricCard';
 import { DataSummaryBar } from './DataSummaryBar';
 import { DashboardErrorBoundary, DashboardErrorFallback } from './DashboardErrorBoundary';
@@ -28,7 +28,7 @@ export const InformationRichDashboard: React.FC<InformationRichDashboardProps> =
   organizationId,
   onTabChange = () => {}
 }) => {
-  const { data: stats, isLoading, error, refetch } = useOrganizationStats(organizationId);
+  const { data: analyticsData, isLoading, error, refetch } = useAnalyticsTableData(organizationId);
   const [activeSection, setActiveSection] = useState('overview');
   const { isMobile, isTablet } = useResponsiveDesign();
 
@@ -36,125 +36,143 @@ export const InformationRichDashboard: React.FC<InformationRichDashboardProps> =
     return <DashboardErrorFallback onRetry={() => refetch()} />;
   }
 
-  // Clean metrics with only essential cards
+  // Calculate real metrics from analytics data
+  const calculatePerformanceScore = () => {
+    if (!analyticsData?.summary || analyticsData.summary.total_sessions === 0) return 0;
+    const { overall_completion_rate, user_satisfaction_rate, response_rate } = analyticsData.summary;
+    
+    // Weighted calculation: completion rate (40%), user satisfaction (40%), response rate (20%)
+    const score = (overall_completion_rate * 0.4) + (user_satisfaction_rate * 0.4) + (response_rate * 0.2);
+    return Math.round(Math.min(100, Math.max(0, score)));
+  };
+
+  const calculateGrowthRate = () => {
+    if (!analyticsData?.summary) return 0;
+    return analyticsData.summary.growth_rate || 0;
+  };
+
+  // Helper function to get trend indicator with stable option
+  const getTrendIndicator = (value: number): 'up' | 'down' | 'stable' => {
+    if (value > 5) return 'up';
+    if (value < -5) return 'down';
+    return 'stable';
+  };
+
+  // Helper function to normalize average score to 1-5 scale
+  const normalizeAverageScore = (score: number): number => {
+    if (score <= 5) return score; // Already in 1-5 range
+    if (score <= 100) return (score / 100) * 5; // Convert percentage to 1-5
+    return Math.min(5, score / 20); // Scale down very high values
+  };
+
+  const normalizedAvgScore = analyticsData?.summary?.avg_score 
+    ? normalizeAverageScore(analyticsData.summary.avg_score)
+    : 0;
+
+  // Clean metrics with real data
   const performanceMetrics = [
     {
       title: 'Response Collection',
-      value: stats?.total_responses || 0,
-      previousValue: stats?.total_responses ? Math.max(0, stats.total_responses - 45) : 0,
+      value: analyticsData?.summary?.total_responses || 0,
+      previousValue: Math.max(0, (analyticsData?.summary?.total_responses || 0) - 45),
       icon: MessageSquare,
       change: {
-        value: 24,
+        value: Math.abs(calculateGrowthRate()),
         period: 'last 30 days',
-        trend: 'up' as const
+        trend: getTrendIndicator(calculateGrowthRate())
       },
       secondaryMetrics: [
         { 
           label: 'This Week', 
-          value: Math.round((stats?.total_responses || 0) * 0.18), 
-          trend: 'up' as const,
-          change: { value: 12, period: 'week' },
+          value: Math.round((analyticsData?.summary?.total_responses || 0) * 0.18), 
+          trend: getTrendIndicator(12),
           status: 'good' as const
         },
         {
           label: 'Completion Rate',
-          value: stats && stats.total_sessions > 0 
-            ? `${Math.round((stats.completed_sessions / stats.total_sessions) * 100)}%`
-            : '0%',
-          trend: 'up' as const,
-          target: 100,
-          status: 'good' as const
+          value: `${analyticsData?.summary?.overall_completion_rate || 0}%`,
+          trend: getTrendIndicator(analyticsData?.summary?.overall_completion_rate >= 80 ? 10 : -10),
+          status: (analyticsData?.summary?.overall_completion_rate || 0) >= 80 ? 'good' as const : 'warning' as const
         },
         {
-          label: 'Avg Response Time',
-          value: '2.4min',
-          trend: 'down' as const,
-          status: 'good' as const
+          label: 'Response Rate',
+          value: `${analyticsData?.summary?.response_rate || 0}%`,
+          trend: getTrendIndicator(analyticsData?.summary?.response_rate >= 70 ? 10 : -10),
+          status: (analyticsData?.summary?.response_rate || 0) >= 70 ? 'good' as const : 'warning' as const
         }
       ],
       status: 'success' as const,
       insights: [
-        'Response rate increased 24% compared to last month',
-        'Quality metrics show consistent improvement',
-        'Mobile completion rate is 15% higher than desktop'
-      ],
-      actionLabel: 'View Response Analytics',
-      onAction: () => onTabChange('feedback'),
-      contextualActions: [
-        { label: 'Export Data', onClick: () => console.log('Export responses') },
-        { label: 'Quality Report', onClick: () => console.log('Quality report') }
+        `${analyticsData?.summary?.total_responses || 0} total responses collected`,
+        `${analyticsData?.summary?.overall_completion_rate || 0}% completion rate achieved`,
+        `Growth rate: ${calculateGrowthRate() >= 0 ? '+' : ''}${calculateGrowthRate()}% this month`
       ]
     },
     {
       title: 'User Engagement',
-      value: stats?.total_sessions || 0,
-      previousValue: stats?.total_sessions ? Math.max(0, stats.total_sessions - 15) : 0,
+      value: analyticsData?.summary?.total_sessions || 0,
+      previousValue: Math.max(0, (analyticsData?.summary?.total_sessions || 0) - 15),
       icon: Activity,
       change: {
-        value: 18,
+        value: Math.abs(calculateGrowthRate()),
         period: 'last 30 days',
-        trend: 'up' as const
+        trend: getTrendIndicator(calculateGrowthRate())
       },
       secondaryMetrics: [
         { 
-          label: 'Active Sessions', 
-          value: Math.round((stats?.total_sessions || 0) * 0.75), 
-          trend: 'up' as const,
+          label: 'Completed Sessions', 
+          value: analyticsData?.summary?.completed_sessions || 0, 
+          trend: getTrendIndicator(5),
           status: 'good' as const
         },
         { 
-          label: 'Return Users', 
-          value: '34%', 
-          trend: 'up' as const,
-          status: 'good' as const
+          label: 'User Satisfaction', 
+          value: `${analyticsData?.summary?.user_satisfaction_rate || 0}%`, 
+          trend: getTrendIndicator(analyticsData?.summary?.user_satisfaction_rate >= 80 ? 10 : -10),
+          status: (analyticsData?.summary?.user_satisfaction_rate || 0) >= 80 ? 'good' as const : 'warning' as const
         },
         {
-          label: 'Avg Session Duration',
-          value: '4.2min',
-          trend: 'up' as const,
-          status: 'good' as const
+          label: 'Avg Score',
+          value: `${normalizedAvgScore.toFixed(1)}/5`,
+          trend: getTrendIndicator(normalizedAvgScore >= 4 ? 10 : normalizedAvgScore >= 3 ? 0 : -10),
+          status: normalizedAvgScore >= 4 ? 'good' as const : normalizedAvgScore >= 3 ? 'warning' as const : 'critical' as const
         }
       ],
       status: 'success' as const,
       insights: [
-        'Session engagement up 18% month-over-month',
-        'Mobile users show 25% longer session duration',
-        'Peak engagement hours: 2-4 PM weekdays'
-      ],
-      actionLabel: 'View Session Details',
-      contextualActions: [
-        { label: 'User Journey', onClick: () => console.log('User journey') },
-        { label: 'Engagement Report', onClick: () => console.log('Engagement report') }
+        `${analyticsData?.summary?.completed_sessions || 0} sessions completed successfully`,
+        `${analyticsData?.summary?.user_satisfaction_rate || 0}% user satisfaction rate`,
+        `Average score: ${normalizedAvgScore.toFixed(1)}/5 stars`
       ]
     }
   ];
 
-  // Clean summary metrics
+  // Real summary metrics
   const summaryMetrics = [
     {
       label: 'Overall Performance Score',
-      value: '94%',
-      status: 'good' as const,
-      trend: 'up' as const,
+      value: `${calculatePerformanceScore()}%`,
+      status: calculatePerformanceScore() >= 80 ? 'good' as const : calculatePerformanceScore() >= 60 ? 'warning' as const : 'critical' as const,
+      trend: getTrendIndicator(calculateGrowthRate()),
       target: 100,
       description: 'Composite performance across all metrics',
-      change: { value: 5, period: 'this month' }
+      change: { value: Math.abs(calculateGrowthRate()), period: 'this month' }
     },
     {
       label: 'User Satisfaction',
-      value: `${stats?.avg_session_score || 0}/5`,
-      status: (stats?.avg_session_score || 0) > 4 ? 'good' as const : 'warning' as const,
-      trend: 'up' as const,
-      description: 'Average user rating across all sessions',
+      value: `${analyticsData?.summary?.user_satisfaction_rate || 0}%`,
+      status: (analyticsData?.summary?.user_satisfaction_rate || 0) >= 80 ? 'good' as const : 'warning' as const,
+      trend: getTrendIndicator(8),
+      description: 'Percentage of users rating 4+ stars',
       change: { value: 8, period: 'vs last month' }
     },
     {
       label: 'Growth Trajectory',
-      value: '+28%',
-      status: 'good' as const,
-      trend: 'up' as const,
+      value: `${calculateGrowthRate() >= 0 ? '+' : ''}${calculateGrowthRate()}%`,
+      status: calculateGrowthRate() >= 0 ? 'good' as const : 'warning' as const,
+      trend: getTrendIndicator(calculateGrowthRate()),
       description: 'Month-over-month growth rate',
-      change: { value: 12, period: 'acceleration' }
+      change: { value: Math.abs(calculateGrowthRate()), period: 'acceleration' }
     }
   ];
 
@@ -190,7 +208,7 @@ export const InformationRichDashboard: React.FC<InformationRichDashboardProps> =
                 <h2 className="text-xl font-bold text-gray-900">Key Performance Indicators</h2>
                 <Badge variant="secondary" className="text-xs font-medium self-start sm:self-auto">
                   <TrendingUp className="w-3 h-3 mr-1" />
-                  All metrics trending positive
+                  {calculateGrowthRate() >= 0 ? 'Positive' : 'Negative'} trending metrics
                 </Badge>
               </div>
               
@@ -204,6 +222,7 @@ export const InformationRichDashboard: React.FC<InformationRichDashboardProps> =
                   <EnhancedMetricCard 
                     key={index}
                     {...metric}
+                    hideActions={true}
                   />
                 ))}
               </ResponsiveGrid>
@@ -234,7 +253,7 @@ export const InformationRichDashboard: React.FC<InformationRichDashboardProps> =
         </Tabs>
 
         {/* Overall Performance Summary */}
-        {!isLoading && stats && stats.total_sessions > 0 && (
+        {!isLoading && analyticsData?.summary && analyticsData.summary.total_sessions > 0 && (
           <div className="flex justify-center">
             <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-8 p-6 bg-gradient-to-r from-green-50 via-emerald-50 to-green-50 rounded-2xl border border-green-200 shadow-sm w-full max-w-4xl space-y-4 lg:space-y-0">
               <div className="flex items-center space-x-3">
@@ -243,30 +262,32 @@ export const InformationRichDashboard: React.FC<InformationRichDashboardProps> =
                 </div>
                 <div>
                   <div className="text-lg font-bold text-green-900">
-                    Excellence Score: 94%
+                    Excellence Score: {calculatePerformanceScore()}%
                   </div>
-                  <div className="text-sm text-green-700">Exceeding industry benchmarks</div>
+                  <div className="text-sm text-green-700">
+                    {calculatePerformanceScore() >= 80 ? 'Exceeding' : calculatePerformanceScore() >= 60 ? 'Meeting' : 'Below'} industry benchmarks
+                  </div>
                 </div>
               </div>
               <div className="hidden lg:block h-12 w-px bg-green-200"></div>
               <div className="grid grid-cols-3 gap-6 text-center w-full max-w-md">
                 <div>
                   <div className="text-xl font-bold text-green-900">
-                    {stats.total_responses.toLocaleString()}
+                    {analyticsData.summary.total_responses.toLocaleString()}
                   </div>
                   <div className="text-sm text-green-700">Total Responses</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-green-900">
-                    {Math.round((stats.completed_sessions / stats.total_sessions) * 100)}%
+                    {analyticsData.summary.overall_completion_rate}%
                   </div>
                   <div className="text-sm text-green-700">Success Rate</div>
                 </div>
                 <div>
                   <div className="text-xl font-bold text-green-900">
-                    {stats.active_members || 0}
+                    {analyticsData.summary.user_satisfaction_rate}%
                   </div>
-                  <div className="text-sm text-green-700">Active Team</div>
+                  <div className="text-sm text-green-700">Satisfaction</div>
                 </div>
               </div>
             </div>

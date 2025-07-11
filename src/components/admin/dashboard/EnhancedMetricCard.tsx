@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,7 @@ import { ContextualActionMenu, createMetricActions } from './ContextualActionMen
 interface SecondaryMetric {
   label: string;
   value: string | number;
-  trend?: 'up' | 'down' | 'neutral';
+  trend?: 'up' | 'down' | 'stable';
   target?: number;
   change?: {
     value: number;
@@ -35,7 +36,7 @@ interface EnhancedMetricCardProps {
   change?: {
     value: number;
     period: string;
-    trend: 'up' | 'down' | 'neutral';
+    trend: 'up' | 'down' | 'stable';
   };
   secondaryMetrics?: SecondaryMetric[];
   icon: React.ComponentType<{ className?: string }>;
@@ -50,6 +51,7 @@ interface EnhancedMetricCardProps {
   }>;
   insights?: string[];
   className?: string;
+  hideActions?: boolean; // New prop to hide action buttons
 }
 
 export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
@@ -65,7 +67,8 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
   onDrillDown,
   contextualActions = [],
   insights = [],
-  className
+  className,
+  hideActions = false // Default to false for backward compatibility
 }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -85,7 +88,7 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
     }
   };
 
-  const getTrendIcon = (trend: 'up' | 'down' | 'neutral') => {
+  const getTrendIcon = (trend: 'up' | 'down' | 'stable') => {
     switch (trend) {
       case 'up': return <ArrowUpRight className="w-3 h-3 text-green-600" />;
       case 'down': return <ArrowDownRight className="w-3 h-3 text-red-600" />;
@@ -93,7 +96,7 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
     }
   };
 
-  const getTrendColor = (trend: 'up' | 'down' | 'neutral') => {
+  const getTrendColor = (trend: 'up' | 'down' | 'stable') => {
     switch (trend) {
       case 'up': return 'text-green-700 bg-green-100 border-green-200';
       case 'down': return 'text-red-700 bg-red-100 border-red-200';
@@ -110,12 +113,12 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
     }
   };
 
-  // Enhanced contextual actions
-  const metricActions = createMetricActions(
+  // Enhanced contextual actions - only show if hideActions is false
+  const metricActions = !hideActions ? createMetricActions(
     () => onDrillDown?.(),
     () => console.log('Export metric data'),
     () => console.log('Share metric')
-  );
+  ) : [];
 
   return (
     <Card 
@@ -137,7 +140,7 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
               <p className="text-sm font-bold text-gray-700 tracking-tight">{title}</p>
               <div className="flex items-center space-x-2">
                 {getStatusIcon(status)}
-                {onDrillDown && (
+                {!hideActions && onDrillDown && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -183,14 +186,16 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
           </div>
         </div>
         
-        {/* Enhanced Contextual Actions Menu */}
-        <div className="flex items-center space-x-2">
-          <ContextualActionMenu 
-            actions={metricActions}
-            title={`${title} Actions`}
-            className="opacity-0 group-hover:opacity-100 transition-opacity"
-          />
-        </div>
+        {/* Enhanced Contextual Actions Menu - only show if hideActions is false */}
+        {!hideActions && metricActions.length > 0 && (
+          <div className="flex items-center space-x-2">
+            <ContextualActionMenu 
+              actions={metricActions}
+              title={`${title} Actions`}
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+            />
+          </div>
+        )}
       </CardHeader>
       
       <CardContent className="pt-0 space-y-6">
@@ -212,20 +217,22 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
                         )}
                       </div>
                     )}
-                    {/* Mini contextual menu for secondary metrics */}
-                    <ContextualActionMenu 
-                      actions={[
-                        {
-                          id: 'view-metric',
-                          label: 'View Details',
-                          icon: ExternalLink,
-                          onClick: () => console.log(`View ${metric.label} details`)
-                        }
-                      ]}
-                      title={`${metric.label} Actions`}
-                      className="opacity-0 group-hover/metric:opacity-100 transition-opacity"
-                      buttonSize="sm"
-                    />
+                    {/* Mini contextual menu for secondary metrics - only show if hideActions is false */}
+                    {!hideActions && (
+                      <ContextualActionMenu 
+                        actions={[
+                          {
+                            id: 'view-metric',
+                            label: 'View Details',
+                            icon: ExternalLink,
+                            onClick: () => console.log(`View ${metric.label} details`)
+                          }
+                        ]}
+                        title={`${metric.label} Actions`}
+                        className="opacity-0 group-hover/metric:opacity-100 transition-opacity"
+                        buttonSize="sm"
+                      />
+                    )}
                   </div>
                 </div>
                 
@@ -269,8 +276,8 @@ export const EnhancedMetricCard: React.FC<EnhancedMetricCardProps> = ({
           </div>
         )}
 
-        {/* Enhanced Action Buttons */}
-        {(actionLabel || contextualActions.length > 0) && (
+        {/* Enhanced Action Buttons - only show if hideActions is false */}
+        {!hideActions && (actionLabel || contextualActions.length > 0) && (
           <div className="pt-4 space-y-3">
             <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
             <div className="flex items-center space-x-3">

@@ -13,6 +13,7 @@ import {
   X,
   Command
 } from 'lucide-react';
+import { useDashboardSearch } from '@/hooks/useDashboardSearch';
 
 interface SearchResult {
   id: string;
@@ -33,41 +34,10 @@ export const DashboardSearch: React.FC<DashboardSearchProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Mock search results - in real implementation, this would query your data
-  const mockResults: SearchResult[] = [
-    {
-      id: '1',
-      title: 'John Doe',
-      type: 'member',
-      description: 'Admin member since 2023',
-      url: '/admin/members'
-    },
-    {
-      id: '2',
-      title: 'How would you rate our service?',
-      type: 'question',
-      description: 'Rating question • 145 responses',
-      url: '/admin/questions'
-    },
-    {
-      id: '3',
-      title: 'Session #abc123',
-      type: 'session',
-      description: 'Completed 2 hours ago • Score: 4.5/5',
-      url: '/admin/feedback'
-    },
-    {
-      id: '4',
-      title: 'Organization Settings',
-      type: 'setting',
-      description: 'Manage organization preferences',
-      url: '/admin/settings'
-    }
-  ];
+  const { results, loading } = useDashboardSearch(organizationId, query);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -112,11 +82,10 @@ export const DashboardSearch: React.FC<DashboardSearchProps> = ({
       if (event.key === 'Escape') {
         setIsOpen(false);
         setQuery('');
-        setResults([]);
       }
 
       // Navigate results with arrow keys
-      if (isOpen) {
+      if (isOpen && results.length > 0) {
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
@@ -137,18 +106,8 @@ export const DashboardSearch: React.FC<DashboardSearchProps> = ({
   }, [isOpen, results, selectedIndex]);
 
   useEffect(() => {
-    if (query.length > 0) {
-      // Simulate search - filter mock results
-      const filtered = mockResults.filter(result =>
-        result.title.toLowerCase().includes(query.toLowerCase()) ||
-        result.description.toLowerCase().includes(query.toLowerCase())
-      );
-      setResults(filtered);
-      setSelectedIndex(0);
-    } else {
-      setResults([]);
-    }
-  }, [query]);
+    setSelectedIndex(0);
+  }, [results]);
 
   const handleSelectResult = (result: SearchResult) => {
     if (result.url && onNavigate) {
@@ -156,7 +115,6 @@ export const DashboardSearch: React.FC<DashboardSearchProps> = ({
     }
     setIsOpen(false);
     setQuery('');
-    setResults([]);
   };
 
   if (!isOpen) {
@@ -205,7 +163,14 @@ export const DashboardSearch: React.FC<DashboardSearchProps> = ({
               </Button>
             </div>
 
-            {results.length > 0 && (
+            {loading && (
+              <div className="p-4 text-center text-muted-foreground">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50 animate-pulse" />
+                <p>Searching...</p>
+              </div>
+            )}
+
+            {!loading && results.length > 0 && (
               <div className="max-h-96 overflow-y-auto p-2">
                 {results.map((result, index) => {
                   const Icon = getIcon(result.type);
@@ -233,14 +198,14 @@ export const DashboardSearch: React.FC<DashboardSearchProps> = ({
               </div>
             )}
 
-            {query.length > 0 && results.length === 0 && (
+            {!loading && query.length > 0 && results.length === 0 && (
               <div className="p-8 text-center text-muted-foreground">
                 <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p>No results found for "{query}"</p>
               </div>
             )}
 
-            {query.length === 0 && (
+            {query.length === 0 && !loading && (
               <div className="p-6 text-center text-muted-foreground">
                 <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">Start typing to search your dashboard</p>

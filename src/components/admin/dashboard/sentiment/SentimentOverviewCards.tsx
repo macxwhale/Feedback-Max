@@ -19,6 +19,22 @@ export const SentimentOverviewCards: React.FC<SentimentOverviewCardsProps> = ({
   totalQuestions,
   overallScore
 }) => {
+  if (totalQuestions === 0) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="hover:shadow-md transition-shadow duration-200">
+          <CardContent className="p-6 text-center">
+            <Brain className="w-8 h-8 mx-auto mb-4 text-gray-400" />
+            <p className="text-gray-500 text-sm">No sentiment data available</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Sentiment analysis will appear once you have feedback responses.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const overallSentiment = sentimentStats.positive > sentimentStats.negative ? 'positive' : 
                           sentimentStats.negative > sentimentStats.positive ? 'negative' : 'neutral';
 
@@ -37,7 +53,7 @@ export const SentimentOverviewCards: React.FC<SentimentOverviewCardsProps> = ({
     {
       title: 'Positive Responses',
       value: sentimentStats.positive,
-      percentage: Math.round((sentimentStats.positive / totalQuestions) * 100),
+      percentage: totalQuestions > 0 ? Math.round((sentimentStats.positive / totalQuestions) * 100) : 0,
       icon: TrendingUp,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
@@ -46,7 +62,7 @@ export const SentimentOverviewCards: React.FC<SentimentOverviewCardsProps> = ({
     {
       title: 'Negative Responses',
       value: sentimentStats.negative,
-      percentage: Math.round((sentimentStats.negative / totalQuestions) * 100),
+      percentage: totalQuestions > 0 ? Math.round((sentimentStats.negative / totalQuestions) * 100) : 0,
       icon: TrendingDown,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
@@ -55,7 +71,7 @@ export const SentimentOverviewCards: React.FC<SentimentOverviewCardsProps> = ({
     {
       title: 'Neutral Responses',
       value: sentimentStats.neutral,
-      percentage: Math.round((sentimentStats.neutral / totalQuestions) * 100),
+      percentage: totalQuestions > 0 ? Math.round((sentimentStats.neutral / totalQuestions) * 100) : 0,
       icon: Activity,
       color: 'text-gray-600',
       bgColor: 'bg-gray-50',

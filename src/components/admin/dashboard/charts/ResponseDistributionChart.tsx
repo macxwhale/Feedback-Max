@@ -17,16 +17,6 @@ export const ResponseDistributionChart: React.FC<ResponseDistributionChartProps>
   data = [], 
   isLoading = false 
 }) => {
-  const mockData = [
-    { score: '1 Star', count: 5, percentage: 8 },
-    { score: '2 Stars', count: 8, percentage: 12 },
-    { score: '3 Stars', count: 15, percentage: 23 },
-    { score: '4 Stars', count: 25, percentage: 38 },
-    { score: '5 Stars', count: 12, percentage: 19 }
-  ];
-
-  const chartData = data.length > 0 ? data : mockData;
-
   if (isLoading) {
     return (
       <Card>
@@ -43,6 +33,30 @@ export const ResponseDistributionChart: React.FC<ResponseDistributionChartProps>
     );
   }
 
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <BarChart3 className="w-5 h-5 mr-2" />
+            Response Distribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex items-center justify-center text-center">
+            <div>
+              <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 font-medium">No response distribution data available</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Response distribution will appear here once you have feedback responses.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -54,7 +68,7 @@ export const ResponseDistributionChart: React.FC<ResponseDistributionChartProps>
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
+            <BarChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="score" />
               <YAxis />

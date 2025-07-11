@@ -17,17 +17,6 @@ export const SessionTrendsChart: React.FC<SessionTrendsChartProps> = ({
   data = [],
   isLoading = false
 }) => {
-  const mockData = [
-    { date: '2024-01', sessions: 45, completedSessions: 38 },
-    { date: '2024-02', sessions: 52, completedSessions: 44 },
-    { date: '2024-03', sessions: 48, completedSessions: 41 },
-    { date: '2024-04', sessions: 61, completedSessions: 55 },
-    { date: '2024-05', sessions: 67, completedSessions: 58 },
-    { date: '2024-06', sessions: 72, completedSessions: 65 },
-  ];
-
-  const chartData = data.length > 0 ? data : mockData;
-
   if (isLoading) {
     return (
       <Card>
@@ -46,6 +35,30 @@ export const SessionTrendsChart: React.FC<SessionTrendsChartProps> = ({
     );
   }
 
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2" />
+            Session Trends
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex items-center justify-center text-center">
+            <div>
+              <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 font-medium">No session trends data available</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Session trends will appear here once you have feedback sessions.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -56,7 +69,7 @@ export const SessionTrendsChart: React.FC<SessionTrendsChartProps> = ({
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
+          <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" />
             <YAxis />

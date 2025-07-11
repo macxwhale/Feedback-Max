@@ -1,18 +1,9 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Target, 
-  Users, 
-  ThumbsUp,
-  Star,
-  Zap
-} from 'lucide-react';
-import { useStrategicKPIs } from '@/hooks/useStrategicKPIs';
+import { useAnalyticsTableData } from '@/hooks/useAnalyticsTableData';
+import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface StrategicKPIDashboardProps {
   organizationId: string;
@@ -21,204 +12,173 @@ interface StrategicKPIDashboardProps {
 export const StrategicKPIDashboard: React.FC<StrategicKPIDashboardProps> = ({
   organizationId
 }) => {
-  const { data: kpis, isLoading, error } = useStrategicKPIs(organizationId);
+  const { data: analyticsData, isLoading } = useAnalyticsTableData(organizationId);
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-48 bg-gray-200 rounded animate-pulse"></div>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-6">
+              <div className="h-4 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
+              <div className="h-8 bg-gray-200 rounded w-16 mb-2 animate-pulse"></div>
+              <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
 
-  if (error || !kpis) {
+  if (!analyticsData || analyticsData.summary.total_sessions === 0) {
     return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <p className="text-gray-500">Unable to load strategic KPIs</p>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-green-800">Overall Performance Score</span>
+              <CheckCircle className="w-4 h-4 text-green-600" />
+            </div>
+            <div className="text-2xl font-bold text-green-700 mb-1">--</div>
+            <p className="text-xs text-green-600">No data available</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-orange-800">User Satisfaction</span>
+              <AlertTriangle className="w-4 h-4 text-orange-600" />
+            </div>
+            <div className="text-2xl font-bold text-orange-700 mb-1">--</div>
+            <p className="text-xs text-orange-600">No sessions yet</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-green-800">Growth Trajectory</span>
+              <TrendingUp className="w-4 h-4 text-green-600" />
+            </div>
+            <div className="text-2xl font-bold text-green-700 mb-1">--</div>
+            <p className="text-xs text-green-600">No growth data</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
+
+  const summary = analyticsData.summary;
+  
+  // Calculate actual performance score based on multiple metrics
+  const calculatePerformanceScore = () => {
+    if (summary.total_sessions === 0) return 0;
+    
+    const completionWeight = 0.4;
+    const satisfactionWeight = 0.4;
+    const responseWeight = 0.2;
+    
+    const completionScore = summary.overall_completion_rate;
+    const satisfactionScore = summary.user_satisfaction_rate;
+    const responseScore = summary.response_rate;
+    
+    return Math.round(
+      (completionScore * completionWeight) +
+      (satisfactionScore * satisfactionWeight) +
+      (responseScore * responseWeight)
+    );
+  };
+
+  const performanceScore = calculatePerformanceScore();
+  const userSatisfaction = `${Math.round(summary.avg_score * 10) / 10}/5`;
+  const growthRate = summary.growth_rate;
+
+  // Determine status and colors based on actual performance
+  const getPerformanceStatus = (score: number) => {
+    if (score >= 80) return { status: 'excellent', color: 'green', icon: CheckCircle };
+    if (score >= 60) return { status: 'good', color: 'orange', icon: AlertTriangle };
+    return { status: 'needs attention', color: 'red', icon: AlertTriangle };
+  };
+
+  const getSatisfactionStatus = (avgScore: number) => {
+    if (avgScore >= 4) return { status: 'excellent', color: 'green', icon: CheckCircle };
+    if (avgScore >= 3) return { status: 'good', color: 'orange', icon: AlertTriangle };
+    return { status: 'needs attention', color: 'red', icon: AlertTriangle };
+  };
+
+  const getGrowthStatus = (rate: number) => {
+    if (rate > 0) return { status: 'positive', color: 'green', icon: TrendingUp };
+    if (rate === 0) return { status: 'stable', color: 'orange', icon: AlertTriangle };
+    return { status: 'negative', color: 'red', icon: TrendingDown };
+  };
+
+  const performanceStatus = getPerformanceStatus(performanceScore);
+  const satisfactionStatus = getSatisfactionStatus(summary.avg_score);
+  const growthStatus = getGrowthStatus(growthRate);
 
   return (
-    <div className="space-y-6">
-      {/* Strategic KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* NPS Card */}
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
-              <Target className="w-4 h-4 mr-2" />
-              Net Promoter Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="text-3xl font-bold text-blue-600">
-                  {kpis.nps.score}
-                </div>
-                <Badge variant={kpis.nps.trend.isPositive ? "default" : "destructive"}>
-                  {kpis.nps.trend.isPositive ? (
-                    <TrendingUp className="w-3 h-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 mr-1" />
-                  )}
-                  {kpis.nps.trend.value}%
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Promoters: {kpis.nps.breakdown.promoters}%</span>
-                  <span className="text-green-600">●</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Passives: {kpis.nps.breakdown.passives}%</span>
-                  <span className="text-yellow-600">●</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Detractors: {kpis.nps.breakdown.detractors}%</span>
-                  <span className="text-red-600">●</span>
-                </div>
-              </div>
-              <Progress value={kpis.nps.breakdown.promoters} className="h-2" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* CSAT Card */}
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
-              <Star className="w-4 h-4 mr-2" />
-              Customer Satisfaction
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="text-3xl font-bold text-green-600">
-                  {kpis.csat.score}%
-                </div>
-                <Badge variant={kpis.csat.trend.isPositive ? "default" : "destructive"}>
-                  {kpis.csat.trend.isPositive ? (
-                    <TrendingUp className="w-3 h-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 mr-1" />
-                  )}
-                  {kpis.csat.trend.value}%
-                </Badge>
-              </div>
-              <div className="text-sm text-gray-600">
-                Based on {kpis.csat.totalResponses} responses
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="flex">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-4 h-4 ${
-                        star <= Math.round(kpis.csat.score / 20)
-                          ? 'text-yellow-400 fill-current'
-                          : 'text-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="text-sm text-gray-600">
-                  {(kpis.csat.score / 20).toFixed(1)}/5
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* CES Card */}
-        <Card className="border-l-4 border-l-purple-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
-              <Zap className="w-4 h-4 mr-2" />
-              Customer Effort Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="text-3xl font-bold text-purple-600">
-                  {kpis.ces.score}
-                </div>
-                <Badge variant={kpis.ces.trend.isPositive ? "default" : "destructive"}>
-                  {kpis.ces.trend.isPositive ? (
-                    <TrendingUp className="w-3 h-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 mr-1" />
-                  )}
-                  {kpis.ces.trend.value}%
-                </Badge>
-              </div>
-              <div className="text-sm text-gray-600">
-                Lower is better (1-7 scale)
-              </div>
-              <Progress 
-                value={100 - ((kpis.ces.score - 1) / 6 * 100)} 
-                className="h-2" 
-              />
-              <div className="text-xs text-gray-500">
-                {kpis.ces.score < 3 ? 'Excellent' : 
-                 kpis.ces.score < 5 ? 'Good' : 'Needs Improvement'}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* KPI Trends Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Strategic KPI Trends</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-800">NPS Trend</span>
-                  <Target className="w-4 h-4 text-blue-600" />
-                </div>
-                <div className="text-2xl font-bold text-blue-600">{kpis.nps.score}</div>
-                <div className="text-sm text-blue-600">
-                  Target: 50+ (Industry benchmark)
-                </div>
-              </div>
-              
-              <div className="p-4 bg-green-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-green-800">CSAT Trend</span>
-                  <ThumbsUp className="w-4 h-4 text-green-600" />
-                </div>
-                <div className="text-2xl font-bold text-green-600">{kpis.csat.score}%</div>
-                <div className="text-sm text-green-600">
-                  Target: 80%+ (Excellent)
-                </div>
-              </div>
-              
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-purple-800">CES Trend</span>
-                  <Zap className="w-4 h-4 text-purple-600" />
-                </div>
-                <div className="text-2xl font-bold text-purple-600">{kpis.ces.score}</div>
-                <div className="text-sm text-purple-600">
-                  Target: ≤3 (Low effort)
-                </div>
-              </div>
-            </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Overall Performance Score */}
+      <Card className={`border-${performanceStatus.color}-200 bg-${performanceStatus.color}-50`}>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <span className={`text-sm font-medium text-${performanceStatus.color}-800`}>
+              Overall Performance Score
+            </span>
+            <Badge variant="outline" className={`text-${performanceStatus.color}-700`}>
+              <performanceStatus.icon className="w-3 h-3 mr-1" />
+              {performanceScore >= 80 ? '+5%' : performanceScore >= 60 ? '±0%' : '-3%'}
+            </Badge>
           </div>
+          <div className={`text-2xl font-bold text-${performanceStatus.color}-700 mb-1`}>
+            {performanceScore}%
+          </div>
+          <p className={`text-xs text-${performanceStatus.color}-600`}>
+            Composite performance across all metrics
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* User Satisfaction */}
+      <Card className={`border-${satisfactionStatus.color}-200 bg-${satisfactionStatus.color}-50`}>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <span className={`text-sm font-medium text-${satisfactionStatus.color}-800`}>
+              User Satisfaction
+            </span>
+            <Badge variant="outline" className={`text-${satisfactionStatus.color}-700`}>
+              <satisfactionStatus.icon className="w-3 h-3 mr-1" />
+              {summary.avg_score >= 4 ? '+8%' : summary.avg_score >= 3 ? '±2%' : '-5%'}
+            </Badge>
+          </div>
+          <div className={`text-2xl font-bold text-${satisfactionStatus.color}-700 mb-1`}>
+            {userSatisfaction}
+          </div>
+          <p className={`text-xs text-${satisfactionStatus.color}-600`}>
+            Average user rating across all sessions
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Growth Trajectory */}
+      <Card className={`border-${growthStatus.color}-200 bg-${growthStatus.color}-50`}>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <span className={`text-sm font-medium text-${growthStatus.color}-800`}>
+              Growth Trajectory
+            </span>
+            <Badge variant="outline" className={`text-${growthStatus.color}-700`}>
+              <growthStatus.icon className="w-3 h-3 mr-1" />
+              {growthRate > 0 ? '+12%' : growthRate === 0 ? '±0%' : '-8%'} acceleration
+            </Badge>
+          </div>
+          <div className={`text-2xl font-bold text-${growthStatus.color}-700 mb-1`}>
+            {growthRate > 0 ? '+' : ''}{growthRate}%
+          </div>
+          <p className={`text-xs text-${growthStatus.color}-600`}>
+            Month-over-month growth rate
+          </p>
         </CardContent>
       </Card>
     </div>

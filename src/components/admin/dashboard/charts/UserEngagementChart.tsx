@@ -17,15 +17,6 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
   data = [],
   isLoading = false
 }) => {
-  const mockData = [
-    { category: 'Week 1', activeUsers: 24, newUsers: 8 },
-    { category: 'Week 2', activeUsers: 28, newUsers: 6 },
-    { category: 'Week 3', activeUsers: 32, newUsers: 12 },
-    { category: 'Week 4', activeUsers: 35, newUsers: 9 },
-  ];
-
-  const chartData = data.length > 0 ? data : mockData;
-
   if (isLoading) {
     return (
       <Card>
@@ -44,6 +35,30 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
     );
   }
 
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Users className="w-5 h-5 mr-2" />
+            User Engagement
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex items-center justify-center text-center">
+            <div>
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 font-medium">No user engagement data available</p>
+              <p className="text-sm text-gray-400 mt-1">
+                User engagement metrics will appear here once you have active users.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -54,7 +69,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData}>
+          <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="category" />
             <YAxis />

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link, useSearchParams } from "react-router-dom";
-import { Activity, ArrowLeft, Star, Eye, EyeOff } from "lucide-react";
+import { Activity, ArrowLeft, Star, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { useAuthFlow } from "@/hooks/useAuthFlow";
 
 export const LoginForm: React.FC = () => {
@@ -27,6 +27,7 @@ export const LoginForm: React.FC = () => {
   const isPasswordSetup = searchParams.get('setup-password') === 'true';
   const orgSlug = searchParams.get('org');
   const invitedEmail = searchParams.get('email');
+  const message = searchParams.get('message');
 
   // Set email from URL params for password setup
   useEffect(() => {
@@ -274,7 +275,7 @@ export const LoginForm: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-sunset-50 via-coral-50 to-golden-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 transition-colors">
       <div className="w-full max-w-md">
-        <Link to="/" className="inline-flex items-center text-sunset-500 hover:text-sunset-600 mb-8 transition-colors font-medium">
+        <Link to="/" className="inline-flex items-center text-sunset-500 hover:text-sunset-600 mb-8 transition-colors font-medium">  
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Home
         </Link>
@@ -287,6 +288,12 @@ export const LoginForm: React.FC = () => {
             <p className="text-warm-gray-500 font-medium">Sign in to your organization account</p>
           </CardHeader>
           <CardContent>
+            {message && (
+              <Alert className="bg-green-50 border border-green-200 mb-6">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-700">{decodeURIComponent(message)}</AlertDescription>
+              </Alert>
+            )}
             <Tabs defaultValue="signin" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6 bg-warm-gray-100/80 border border-warm-gray-200 rounded-lg shadow-sm">
                 <TabsTrigger value="signin" className="font-semibold text-warm-gray-700">Sign In</TabsTrigger>

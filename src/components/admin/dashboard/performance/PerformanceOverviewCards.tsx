@@ -2,7 +2,6 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Target } from 'lucide-react';
-import { getResponseTimeColor, getCompletionColor } from './performanceUtils';
 
 interface PerformanceOverviewCardsProps {
   performanceInsights: {
@@ -19,6 +18,32 @@ export const PerformanceOverviewCards: React.FC<PerformanceOverviewCardsProps> =
   performanceInsights,
   totalQuestions
 }) => {
+  // Calculate a realistic performance score based on actual metrics
+  const calculatePerformanceScore = () => {
+    if (totalQuestions === 0 || performanceInsights.totalResponses === 0) {
+      return 0;
+    }
+
+    // Weight different factors:
+    // - Completion rate (40% weight)
+    // - Response time efficiency (30% weight) - lower is better, cap at 10 seconds
+    // - Question engagement (30% weight) - ratio of fast to total questions
+    
+    const completionScore = performanceInsights.avgCompletionRate;
+    
+    const responseTimeScore = Math.max(0, 100 - (performanceInsights.avgResponseTime / 100)); // Normalize response time
+    
+    const engagementScore = totalQuestions > 0 
+      ? (performanceInsights.fastRespondingQuestions / totalQuestions) * 100 
+      : 0;
+    
+    const overallScore = (completionScore * 0.4) + (responseTimeScore * 0.3) + (engagementScore * 0.3);
+    
+    return Math.round(Math.min(100, Math.max(0, overallScore)));
+  };
+
+  const performanceScore = calculatePerformanceScore();
+
   return (
     <div className="grid grid-cols-1 max-w-2xl mx-auto">
       <Card className="hover:shadow-lg transition-shadow duration-200">
@@ -30,10 +55,13 @@ export const PerformanceOverviewCards: React.FC<PerformanceOverviewCardsProps> =
             </div>
           </div>
           <div className="text-3xl font-bold text-blue-600 mb-4">
-            {Math.round((performanceInsights.avgCompletionRate + (5000 - performanceInsights.avgResponseTime) / 50) / 2)}%
+            {performanceScore}%
           </div>
           <div className="text-sm text-gray-500 leading-relaxed">
-            Composite score measuring response speed, completion rates, and user engagement across all feedback sessions.
+            {totalQuestions === 0 || performanceInsights.totalResponses === 0
+              ? "Performance score will appear once you have feedback responses."
+              : "Composite score measuring response speed, completion rates, and user engagement across all feedback sessions."
+            }
           </div>
         </CardContent>
       </Card>

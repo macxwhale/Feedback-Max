@@ -118,16 +118,16 @@ export const EnhancedFeedbackAnalytics: React.FC<EnhancedFeedbackAnalyticsProps>
     {
       title: 'Completion Rate',
       value: `${analyticsData.summary.overall_completion_rate}%`,
-      change: 5,
-      trend: 'up' as const,
+      change: analyticsData.summary.growth_rate,
+      trend: analyticsData.summary.growth_rate >= 0 ? 'up' as const : 'down' as const,
       icon: Target,
       description: 'Session completion percentage'
     },
     {
       title: 'Avg. Response Time',
       value: avgResponseTimeMinutes > 0 ? `${avgResponseTimeMinutes}min` : '0min',
-      change: -8,
-      trend: 'down' as const,
+      change: 0, // We don't have historical data for this metric
+      trend: 'neutral' as const,
       icon: Clock,
       description: 'Average time per response'
     }
@@ -177,18 +177,23 @@ export const EnhancedFeedbackAnalytics: React.FC<EnhancedFeedbackAnalyticsProps>
                     <p className="text-sm font-medium text-gray-600">{metric.title}</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-1">
-                  {metric.trend === 'up' ? (
-                    <ArrowUpRight className="w-3 h-3 text-green-500" />
-                  ) : (
-                    <ArrowDownRight className="w-3 h-3 text-red-500" />
-                  )}
-                  <span className={`text-xs font-medium ${
-                    metric.trend === 'up' ? 'text-green-500' : 'text-red-500'
-                  }`}>
-                    {metric.change}%
-                  </span>
-                </div>
+                {metric.change !== 0 && (
+                  <div className="flex items-center space-x-1">
+                    {metric.trend === 'up' ? (
+                      <ArrowUpRight className="w-3 h-3 text-green-500" />
+                    ) : metric.trend === 'down' ? (
+                      <ArrowDownRight className="w-3 h-3 text-red-500" />
+                    ) : null}
+                    {metric.change !== 0 && (
+                      <span className={`text-xs font-medium ${
+                        metric.trend === 'up' ? 'text-green-500' : 
+                        metric.trend === 'down' ? 'text-red-500' : 'text-gray-500'
+                      }`}>
+                        {Math.abs(metric.change)}%
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-bold text-gray-900">{metric.value}</div>
@@ -227,14 +232,20 @@ export const EnhancedFeedbackAnalytics: React.FC<EnhancedFeedbackAnalyticsProps>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {analyticsData.categories.map((category, index) => (
-                    <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium">{category.category}</span>
-                      <Badge variant="secondary">
-                        {category.total_responses}
-                      </Badge>
+                  {analyticsData.categories.length > 0 ? (
+                    analyticsData.categories.map((category, index) => (
+                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm font-medium">{category.category}</span>
+                        <Badge variant="secondary">
+                          {category.total_responses}
+                        </Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      No response data available
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -331,15 +342,30 @@ export const EnhancedFeedbackAnalytics: React.FC<EnhancedFeedbackAnalyticsProps>
                       </p>
                     </div>
                   )}
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm font-medium text-blue-800">
-                      ℹ {analyticsData.summary.completed_sessions} sessions completed successfully
-                    </p>
-                  </div>
-                  {analyticsData.summary.overall_completion_rate < 70 && (
+                  {analyticsData.summary.completed_sessions > 0 ? (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm font-medium text-blue-800">
+                        ℹ {analyticsData.summary.completed_sessions} sessions completed successfully
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm font-medium text-gray-800">
+                        ℹ No completed sessions yet
+                      </p>
+                    </div>
+                  )}
+                  {analyticsData.summary.overall_completion_rate < 70 && analyticsData.summary.total_sessions > 0 && (
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-sm font-medium text-amber-800">
                         ⚠ Completion rate needs attention ({analyticsData.summary.overall_completion_rate}%)
+                      </p>
+                    </div>
+                  )}
+                  {analyticsData.summary.total_sessions === 0 && (
+                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm font-medium text-gray-800">
+                        📊 No feedback sessions recorded yet. Start collecting feedback to see insights here.
                       </p>
                     </div>
                   )}
@@ -356,28 +382,39 @@ export const EnhancedFeedbackAnalytics: React.FC<EnhancedFeedbackAnalyticsProps>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {analyticsData.summary.overall_completion_rate < 70 && (
+                  {analyticsData.summary.total_sessions === 0 ? (
                     <div className="p-3 border rounded-lg">
-                      <p className="text-sm font-medium mb-1">Optimize Form Length</p>
+                      <p className="text-sm font-medium mb-1">Start Collecting Feedback</p>
                       <p className="text-xs text-gray-600">
-                        Consider shorter forms to improve completion rates
+                        Set up your first feedback form to begin gathering insights
                       </p>
                     </div>
+                  ) : (
+                    <>
+                      {analyticsData.summary.overall_completion_rate < 70 && (
+                        <div className="p-3 border rounded-lg">
+                          <p className="text-sm font-medium mb-1">Optimize Form Length</p>
+                          <p className="text-xs text-gray-600">
+                            Consider shorter forms to improve completion rates
+                          </p>
+                        </div>
+                      )}
+                      {analyticsData.summary.user_satisfaction_rate < 75 && (
+                        <div className="p-3 border rounded-lg">
+                          <p className="text-sm font-medium mb-1">Improve User Experience</p>
+                          <p className="text-xs text-gray-600">
+                            Focus on enhancing the feedback collection process
+                          </p>
+                        </div>
+                      )}
+                      <div className="p-3 border rounded-lg">
+                        <p className="text-sm font-medium mb-1">Monitor Performance</p>
+                        <p className="text-xs text-gray-600">
+                          Regular tracking of key metrics for continuous improvement
+                        </p>
+                      </div>
+                    </>
                   )}
-                  {analyticsData.summary.user_satisfaction_rate < 75 && (
-                    <div className="p-3 border rounded-lg">
-                      <p className="text-sm font-medium mb-1">Improve User Experience</p>
-                      <p className="text-xs text-gray-600">
-                        Focus on enhancing the feedback collection process
-                      </p>
-                    </div>
-                  )}
-                  <div className="p-3 border rounded-lg">
-                    <p className="text-sm font-medium mb-1">Monitor Performance</p>
-                    <p className="text-xs text-gray-600">
-                      Regular tracking of key metrics for continuous improvement
-                    </p>
-                  </div>
                 </div>
               </CardContent>
             </Card>

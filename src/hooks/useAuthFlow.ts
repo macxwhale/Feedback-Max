@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthWrapper";
 import { AuthService } from "@/services/authService";
 import { usePasswordReset } from "@/hooks/usePasswordReset";
+import { useInvitationProcessor } from "@/hooks/useInvitationProcessor";
 
 export function useAuthFlow() {
   const [email, setEmail] = useState("");
@@ -16,6 +17,7 @@ export function useAuthFlow() {
 
   const { signIn, signUp, updatePassword } = useAuth();
   const passwordResetMutation = usePasswordReset();
+  const { processInvitation, processing: invitationProcessing } = useInvitationProcessor();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -44,7 +46,7 @@ export function useAuthFlow() {
       description: "You have been signed in successfully." 
     });
 
-    // Wait for auth state to settle before redirecting
+    // Wait for auth state to settle before processing
     console.log('Sign in successful, waiting for session...');
     
     // Use a timeout to wait for the auth state to update
@@ -55,14 +57,25 @@ export function useAuthFlow() {
         if (session?.user) {
           console.log('Session found, determining redirect path...');
           
-          // If this is an invitation flow, skip the default redirect
-          // The invitation processing will handle the redirect
-          if (isInvitation && orgSlug) {
-            console.log('Invitation flow detected, skipping default redirect');
-            setLoading(false);
-            return;
+          // If this is an invitation flow, process the invitation first
+          if (isInvitation && orgSlug && email) {
+            console.log('Invitation flow detected, processing invitation...');
+            const result = await processInvitation(email, orgSlug, session.user.id);
+            
+            if (result.success) {
+              // processInvitation handles the redirect
+              setLoading(false);
+              return;
+            } else {
+              // If invitation processing fails, show error and redirect to auth
+              setError(result.error || 'Failed to process invitation');
+              navigate('/auth?error=' + encodeURIComponent('Failed to process invitation'));
+              setLoading(false);
+              return;
+            }
           }
           
+          // For non-invitation flows, use the normal redirect logic
           const redirectPath = await AuthService.handlePostAuthRedirect(session.user);
           console.log('Redirecting to:', redirectPath);
           navigate(redirectPath);
@@ -71,7 +84,7 @@ export function useAuthFlow() {
           navigate('/auth');
         }
       } catch (error) {
-        console.error('Post-signin redirection error:', error);
+        console.error('Post-signin processing error:', error);
         navigate('/');
       } finally {
         setLoading(false);
@@ -131,12 +144,12 @@ export function useAuthFlow() {
       description: "Your password has been successfully updated.",
     });
     
-    // Check if this is an invitation flow
+    // Check if this is an invitation flow for password reset
     const isInvitation = searchParams.get('invitation') === 'true';
     const orgSlug = searchParams.get('org');
     
     if (isInvitation && orgSlug && email) {
-      // For invited users, process the invitation after password is set
+      // For invited users during password reset, process the invitation
       console.log('Processing invitation after password reset for:', email, 'to org:', orgSlug);
       
       try {
@@ -144,82 +157,13 @@ export function useAuthFlow() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          // Get organization details
-          const { data: organization } = await supabase
-            .from('organizations')
-            .select('id, name, slug')
-            .eq('slug', orgSlug)
-            .single();
-
-          if (!organization) {
-            console.error('Organization not found:', orgSlug);
-            setError('Organization not found');
-            setLoading(false);
-            return;
-          }
-
-          // Check if user is already in organization
-          const { data: existingMembership } = await supabase
-            .from('organization_users')
-            .select('id')
-            .eq('user_id', session.user.id)
-            .eq('organization_id', organization.id)
-            .maybeSingle();
-
-          if (!existingMembership) {
-            // Get invitation details to determine role
-            const { data: invitation } = await supabase
-              .from('user_invitations')
-              .select('role, enhanced_role')
-              .eq('email', email.toLowerCase().trim())
-              .eq('organization_id', organization.id)
-              .eq('status', 'pending')
-              .single();
-
-            const role = invitation?.role || 'member';
-            const enhancedRole = invitation?.enhanced_role || 'member';
-
-            // Add user to organization with proper typing
-            const { error: addError } = await supabase
-              .from('organization_users')
-              .insert({
-                user_id: session.user.id,
-                organization_id: organization.id,
-                email: email,
-                role: role,
-                enhanced_role: enhancedRole as "owner" | "admin" | "manager" | "analyst" | "member" | "viewer",
-                status: 'active',
-                accepted_at: new Date().toISOString()
-              });
-
-            if (addError) {
-              console.error('Error adding user to organization:', addError);
-              setError('Failed to join organization');
-              setLoading(false);
-              return;
-            }
-
-            // Mark invitation as accepted
-            await supabase
-              .from('user_invitations')
-              .update({ 
-                status: 'accepted',
-                updated_at: new Date().toISOString()
-              })
-              .eq('email', email.toLowerCase().trim())
-              .eq('organization_id', organization.id);
-
-            console.log('User successfully added to organization');
-          } else {
-            console.log('User already in organization');
-          }
-
-          // Add a delay to ensure database consistency before redirect
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          const result = await processInvitation(email, orgSlug, session.user.id);
           
-          // Redirect to organization dashboard
-          console.log('Redirecting to organization dashboard:', orgSlug);
-          navigate(`/admin/${orgSlug}`);
+          if (!result.success) {
+            setError(result.error || 'Failed to process invitation');
+            navigate('/auth?error=' + encodeURIComponent('Failed to process invitation'));
+          }
+          // processInvitation handles the redirect on success
         } else {
           console.error('No session found after password reset');
           setError('Authentication error. Please try signing in.');
@@ -244,7 +188,7 @@ export function useAuthFlow() {
     setEmail,
     password,
     setPassword,
-    loading: loading || passwordResetMutation.isPending,
+    loading: loading || passwordResetMutation.isPending || invitationProcessing,
     error,
     setError,
     showForgotPassword,

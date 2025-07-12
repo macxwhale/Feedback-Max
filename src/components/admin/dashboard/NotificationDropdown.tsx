@@ -42,6 +42,22 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     }
   };
 
+  const formatNotificationMessage = (notification: Notification) => {
+    let message = notification.message;
+    
+    // Replace "N/A" with more user-friendly text
+    if (message.includes('N/A')) {
+      message = message.replace('For question: N/A', 'New feedback response received');
+    }
+    
+    // If we have question text in metadata, use it
+    if (notification.metadata?.question_text && notification.metadata.question_text !== 'N/A') {
+      message = `For question: ${notification.metadata.question_text}`;
+    }
+    
+    return message;
+  };
+
   // Show only recent notifications in dropdown (last 10)
   const recentNotifications = notifications.slice(0, 10);
 
@@ -117,7 +133,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                           )}
                         </div>
                         <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
-                          {notification.message}
+                          {formatNotificationMessage(notification)}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                           {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}

@@ -45,6 +45,22 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
     }
   };
 
+  const formatNotificationMessage = (notification: Notification) => {
+    let message = notification.message;
+    
+    // Replace "N/A" with more user-friendly text
+    if (message.includes('N/A')) {
+      message = message.replace('For question: N/A', 'New feedback response received');
+    }
+    
+    // If we have question text in metadata, use it
+    if (notification.metadata?.question_text && notification.metadata.question_text !== 'N/A') {
+      message = `For question: ${notification.metadata.question_text}`;
+    }
+    
+    return message;
+  };
+
   const handleDismiss = async (notificationId: string) => {
     try {
       await removeNotification(notificationId);
@@ -176,7 +192,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                           )}
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                          {notification.message}
+                          {formatNotificationMessage(notification)}
                         </p>
                         <p className="text-xs text-gray-500 mt-2">
                           {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}

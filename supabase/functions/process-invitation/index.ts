@@ -81,10 +81,18 @@ serve(async (req: Request) => {
       `)
       .eq('invitation_token', token)
       .eq('status', 'pending')
-      .single();
+      .maybeSingle();
 
-    if (invitationError || !invitation) {
-      console.error('Invalid invitation token:', invitationError);
+    if (invitationError) {
+      console.error('Database error while validating invitation:', invitationError);
+      return createResponse({ 
+        success: false, 
+        error: 'Failed to validate invitation token' 
+      }, 500);
+    }
+
+    if (!invitation) {
+      console.error('No invitation found for token:', token);
       return createResponse({ 
         success: false, 
         error: 'Invalid or expired invitation token' 
@@ -157,7 +165,7 @@ serve(async (req: Request) => {
       .select('id')
       .eq('user_id', userId)
       .eq('organization_id', invitation.organization_id)
-      .single();
+      .maybeSingle();
 
     if (!existingOrgUser) {
       // Add user to organization

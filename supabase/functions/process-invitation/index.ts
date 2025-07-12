@@ -76,6 +76,7 @@ serve(async (req: Request) => {
         enhanced_role,
         status,
         expires_at,
+        invited_by_user_id,
         organizations!inner(id, name, slug)
       `)
       .eq('invitation_token', token)

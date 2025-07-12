@@ -63,29 +63,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signUp = async (email: string, password: string) => {
     try {
-      console.log('=== SIGNUP WITH INVITATION DETECTION ===');
-      
-      // Check if this is an invitation signup by looking at current URL parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const isInvitation = urlParams.get('invitation') === 'true';
-      const orgSlug = urlParams.get('org');
-      
-      console.log('Signup context detected:', {
-        isInvitation,
-        orgSlug,
-        currentUrl: window.location.href
-      });
-      
-      let redirectUrl = createAuthRedirectUrl('/auth-callback?type=signup');
-      
-      // CRITICAL: If this is an invitation signup, preserve the invitation parameters in the redirect URL
-      if (isInvitation && orgSlug) {
-        console.log('=== PRESERVING INVITATION PARAMETERS IN SIGNUP ===');
-        redirectUrl = createAuthRedirectUrl(`/auth-callback?type=signup&invitation=true&org=${orgSlug}`);
-        console.log('Invitation signup redirect URL:', redirectUrl);
-      }
-      
-      console.log('Final signup redirect URL:', redirectUrl);
+      const redirectUrl = createAuthRedirectUrl('/auth-callback?type=signup');
       
       const { error } = await supabase.auth.signUp({
         email,
@@ -98,7 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { error };
       }
       
-      console.log('Signup successful, redirect URL set to:', redirectUrl);
+      console.log('Signup successful');
       return { error: null };
     } catch (error) {
       console.error('Sign up error:', error);

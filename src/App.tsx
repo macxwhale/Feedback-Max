@@ -22,6 +22,7 @@ import { ThemeManager } from "@/components/ThemeManager";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import AuthCallback from './pages/AuthCallback';
+import ResetPassword from './pages/ResetPassword';
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,9 @@ function App() {
                 
                 {/* Organization user authentication */}
                 <Route path="/auth" element={<LoginPage />} />
+                
+                {/* Password reset page */}
+                <Route path="/reset-password" element={<ResetPassword />} />
                 
                 {/* Auth callback - FIXED route */}
                 <Route path="/auth-callback" element={<AuthCallback />} />

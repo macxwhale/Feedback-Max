@@ -116,7 +116,11 @@ export function useInvitationProcessor() {
 
       console.log('Successfully added user to organization:', insertedUser);
 
-      // Mark invitation as accepted if it exists
+      // This will be handled later in the success section
+
+      console.log('=== INVITATION PROCESSING SUCCESS ===');
+      
+      // Mark invitation as accepted (remove from pending invitations)
       if (invitation) {
         const { error: updateError } = await supabase
           .from('user_invitations')
@@ -129,11 +133,9 @@ export function useInvitationProcessor() {
         if (updateError) {
           console.warn('Could not update invitation status:', updateError);
         } else {
-          console.log('Marked invitation as accepted');
+          console.log('Marked invitation as accepted and removed from pending');
         }
       }
-
-      console.log('=== INVITATION PROCESSING SUCCESS ===');
       
       toast({
         title: "Welcome!",

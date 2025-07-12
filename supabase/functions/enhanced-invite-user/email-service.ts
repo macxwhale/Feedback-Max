@@ -29,8 +29,8 @@ export const sendInvitationEmail = async (
   req: Request
 ): Promise<{ success: boolean; error?: string }> => {
   const baseUrl = getBaseUrl(req);
-  // Change redirect to go directly to auth page with invitation parameters
-  const redirectUrl = `${baseUrl}/auth?invitation=true&org=${organization.slug}`;
+  // Send invitation to password reset page with invitation parameters
+  const redirectUrl = `${baseUrl}/reset-password?invitation=true&org=${organization.slug}`;
   
   console.log('Using redirect URL for invitation:', redirectUrl);
 

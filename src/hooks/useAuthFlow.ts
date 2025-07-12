@@ -44,12 +44,6 @@ export function useAuthFlow() {
     console.log('=== SIGN IN FLOW START ===');
     console.log('Starting sign in process for:', email);
     
-    // Check if this is an invitation flow
-    const isInvitation = searchParams.get('invitation') === 'true';
-    const orgSlug = searchParams.get('org');
-    
-    console.log('Sign in context:', { isInvitation, orgSlug });
-    
     const { error: signInError } = await signIn(email, password);
     
     if (signInError) {
@@ -74,26 +68,7 @@ export function useAuthFlow() {
         if (session?.user) {
           console.log('Session found, determining redirect path...');
           
-          // If this is an invitation flow, process the invitation first
-          if (isInvitation && orgSlug && email) {
-            console.log('=== INVITATION SIGN IN DETECTED ===');
-            console.log('Processing invitation for existing user login');
-            const result = await processInvitation(email, orgSlug, session.user.id);
-            
-            if (result.success) {
-              // processInvitation handles the redirect
-              setLoading(false);
-              return;
-            } else {
-              // If invitation processing fails, show error and redirect to auth
-              setError(result.error || 'Failed to process invitation');
-              navigate('/auth?error=' + encodeURIComponent('Failed to process invitation'));
-              setLoading(false);
-              return;
-            }
-          }
-          
-          // For non-invitation flows, use the normal redirect logic
+          // Use the normal redirect logic
           const redirectPath = await AuthService.handlePostAuthRedirect(session.user);
           console.log('Redirecting to:', redirectPath);
           navigate(redirectPath);
@@ -118,12 +93,6 @@ export function useAuthFlow() {
     console.log('=== SIGN UP FLOW START ===');
     console.log('Starting sign up process for:', email);
     
-    // Check if this is an invitation signup
-    const isInvitation = searchParams.get('invitation') === 'true';
-    const orgSlug = searchParams.get('org');
-    
-    console.log('Signup context:', { isInvitation, orgSlug });
-    
     const { error: signUpError } = await signUp(email, password);
     
     if (signUpError) {
@@ -133,15 +102,11 @@ export function useAuthFlow() {
       return;
     }
 
-    const successMessage = isInvitation 
-      ? "Account created! Please check your email to verify your account and join the organization."
-      : "Account created! Please check your email to verify your account.";
-
-    console.log('Signup successful for invitation:', isInvitation);
+    console.log('Signup successful');
     
     toast({
       title: "Account created!",
-      description: successMessage,
+      description: "Account created! Please check your email to verify your account.",
     });
     setLoading(false);
   };
@@ -178,42 +143,9 @@ export function useAuthFlow() {
       description: "Your password has been successfully updated.",
     });
     
-    // Check if this is an invitation flow for password reset
-    const isInvitation = searchParams.get('invitation') === 'true';
-    const orgSlug = searchParams.get('org');
-    
-    if (isInvitation && orgSlug && email) {
-      // For invited users during password reset, process the invitation
-      console.log('=== INVITATION PASSWORD RESET COMPLETION ===');
-      console.log('Processing invitation after password reset for:', email, 'to org:', orgSlug);
-      
-      try {
-        // Get the current session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          const result = await processInvitation(email, orgSlug, session.user.id);
-          
-          if (!result.success) {
-            setError(result.error || 'Failed to process invitation');
-            navigate('/auth?error=' + encodeURIComponent('Failed to process invitation'));
-          }
-          // processInvitation handles the redirect on success
-        } else {
-          console.error('No session found after password reset');
-          setError('Authentication error. Please try signing in.');
-          navigate('/auth');
-        }
-      } catch (error) {
-        console.error('Error processing invitation:', error);
-        setError('Failed to process invitation');
-        navigate('/auth?error=' + encodeURIComponent('Failed to process invitation'));
-      }
-    } else {
-      // For regular password reset, redirect to dashboard
-      console.log('Regular password reset, redirecting to dashboard');
-      navigate('/');
-    }
+    // For password reset, redirect to dashboard
+    console.log('Password reset completed, redirecting to dashboard');
+    navigate('/');
     
     setLoading(false);
   };

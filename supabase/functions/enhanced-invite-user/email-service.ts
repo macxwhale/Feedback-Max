@@ -29,9 +29,10 @@ export const sendInvitationEmail = async (
   req: Request
 ): Promise<{ success: boolean; error?: string }> => {
   const baseUrl = getBaseUrl(req);
-  const redirectUrl = `${baseUrl}/auth-callback?org=${organization.slug}&invitation=true&type=signup`;
+  // Change redirect to go directly to auth page with invitation parameters
+  const redirectUrl = `${baseUrl}/auth?invitation=true&org=${organization.slug}`;
   
-  console.log('Using redirect URL:', redirectUrl);
+  console.log('Using redirect URL for invitation:', redirectUrl);
 
   const { data: inviteResponse, error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
     email,

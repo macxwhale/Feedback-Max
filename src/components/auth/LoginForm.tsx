@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link, useSearchParams } from "react-router-dom";
-import { Activity, ArrowLeft, Star, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { Activity, ArrowLeft, Star, Eye, EyeOff, CheckCircle, Users } from "lucide-react";
 import { useAuthFlow } from "@/hooks/useAuthFlow";
 
 export const LoginForm: React.FC = () => {
@@ -25,6 +25,7 @@ export const LoginForm: React.FC = () => {
   const [newPasswordError, setNewPasswordError] = useState("");
 
   const isPasswordSetup = searchParams.get('setup-password') === 'true';
+  const isInvitation = searchParams.get('invitation') === 'true';
   const orgSlug = searchParams.get('org');
   const invitedEmail = searchParams.get('email');
   const message = searchParams.get('message');
@@ -284,8 +285,21 @@ export const LoginForm: React.FC = () => {
             <div className="mx-auto bg-sunset-100 w-16 h-16 rounded-full flex items-center justify-center text-sunset-500 mb-4 shadow-md">
               <Activity className="h-8 w-8" />
             </div>
-            <CardTitle className="text-2xl font-space font-extrabold text-warm-gray-900">Welcome to Pulsify</CardTitle>
-            <p className="text-warm-gray-500 font-medium">Sign in to your organization account</p>
+            <CardTitle className="text-2xl font-space font-extrabold text-warm-gray-900">
+              {isInvitation ? 'Join Organization' : 'Welcome to Pulsify'}
+            </CardTitle>
+            <p className="text-warm-gray-500 font-medium">
+              {isInvitation && orgSlug 
+                ? `You've been invited to join ${orgSlug.replace('-', ' ')}` 
+                : 'Sign in to your organization account'
+              }
+            </p>
+            {isInvitation && (
+              <div className="flex items-center justify-center gap-2 mt-2 text-sm text-sunset-600">
+                <Users className="w-4 h-4" />
+                <span>Organization Invitation</span>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {message && (
@@ -297,7 +311,9 @@ export const LoginForm: React.FC = () => {
             <Tabs defaultValue="signin" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6 bg-warm-gray-100/80 border border-warm-gray-200 rounded-lg shadow-sm">
                 <TabsTrigger value="signin" className="font-semibold text-warm-gray-700">Sign In</TabsTrigger>
-                <TabsTrigger value="signup" className="font-semibold text-warm-gray-700">Sign Up</TabsTrigger>
+                <TabsTrigger value="signup" className="font-semibold text-warm-gray-700">
+                  {isInvitation ? 'Create Account' : 'Sign Up'}
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="signin">
@@ -358,7 +374,7 @@ export const LoginForm: React.FC = () => {
                     className="w-full h-12 bg-gradient-to-r from-sunset-500 to-coral-500 hover:from-sunset-600 hover:to-coral-600 text-white text-base font-bold rounded-full shadow-lg shadow-sunset-500/20"
                     disabled={loading}
                   >
-                    {loading ? "Signing in..." : "Sign In"}
+                    {loading ? "Signing in..." : (isInvitation ? "Join Organization" : "Sign In")}
                   </Button>
                 </form>
               </TabsContent>
@@ -415,10 +431,13 @@ export const LoginForm: React.FC = () => {
                     className="w-full h-12 bg-gradient-to-r from-sunset-500 to-coral-500 hover:from-sunset-600 hover:to-coral-600 text-white text-base font-bold rounded-full shadow-lg shadow-sunset-500/20"
                     disabled={loading}
                   >
-                    {loading ? "Creating account..." : "Sign Up"}
+                    {loading ? "Creating account..." : (isInvitation ? "Join Organization" : "Sign Up")}
                   </Button>
                   <div className="text-xs text-center text-warm-gray-400 mt-3">
-                    After verifying your email, your organization will be created in the next step.
+                    {isInvitation 
+                      ? "After verifying your email, you'll be added to the organization."
+                      : "After verifying your email, your organization will be created in the next step."
+                    }
                   </div>
                 </form>
               </TabsContent>

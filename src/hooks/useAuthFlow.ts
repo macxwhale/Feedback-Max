@@ -41,11 +41,14 @@ export function useAuthFlow() {
     setLoading(true);
     setError("");
     
+    console.log('=== SIGN IN FLOW START ===');
     console.log('Starting sign in process for:', email);
     
     // Check if this is an invitation flow
     const isInvitation = searchParams.get('invitation') === 'true';
     const orgSlug = searchParams.get('org');
+    
+    console.log('Sign in context:', { isInvitation, orgSlug });
     
     const { error: signInError } = await signIn(email, password);
     
@@ -73,7 +76,8 @@ export function useAuthFlow() {
           
           // If this is an invitation flow, process the invitation first
           if (isInvitation && orgSlug && email) {
-            console.log('Invitation flow detected, processing invitation...');
+            console.log('=== INVITATION SIGN IN DETECTED ===');
+            console.log('Processing invitation for existing user login');
             const result = await processInvitation(email, orgSlug, session.user.id);
             
             if (result.success) {
@@ -111,6 +115,15 @@ export function useAuthFlow() {
     setLoading(true);
     setError("");
     
+    console.log('=== SIGN UP FLOW START ===');
+    console.log('Starting sign up process for:', email);
+    
+    // Check if this is an invitation signup
+    const isInvitation = searchParams.get('invitation') === 'true';
+    const orgSlug = searchParams.get('org');
+    
+    console.log('Signup context:', { isInvitation, orgSlug });
+    
     const { error: signUpError } = await signUp(email, password);
     
     if (signUpError) {
@@ -119,9 +132,13 @@ export function useAuthFlow() {
       return;
     }
 
+    const successMessage = isInvitation 
+      ? "Account created! Please check your email to verify your account and join the organization."
+      : "Account created! Please check your email to verify your account.";
+
     toast({
       title: "Account created!",
-      description: "Please check your email to verify your account.",
+      description: successMessage,
     });
     setLoading(false);
   };
@@ -164,6 +181,7 @@ export function useAuthFlow() {
     
     if (isInvitation && orgSlug && email) {
       // For invited users during password reset, process the invitation
+      console.log('=== INVITATION PASSWORD RESET COMPLETION ===');
       console.log('Processing invitation after password reset for:', email, 'to org:', orgSlug);
       
       try {

@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { EnhancedLoadingSpinner } from '@/components/admin/dashboard/EnhancedLoadingSpinner';
 import { AuthService } from '@/services/authService';
 import { useInvitationProcessor } from '@/hooks/useInvitationProcessor';
-import type { Role } from '@/utils/roleManagement';
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -17,13 +16,14 @@ const AuthCallback: React.FC = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        console.log('Auth callback started');
+        console.log('=== AUTH CALLBACK STARTED ===');
+        console.log('URL search params:', Object.fromEntries(searchParams.entries()));
         
         // Get the session after the auth callback
         const { data, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error('Auth callback error:', sessionError);
+          console.error('Auth callback session error:', sessionError);
           setError(sessionError.message);
           setTimeout(() => navigate('/auth?error=' + encodeURIComponent(sessionError.message)), 2000);
           return;
@@ -39,42 +39,37 @@ const AuthCallback: React.FC = () => {
           const orgSlugFromUrl = searchParams.get('org');
           const isInvitation = searchParams.get('invitation') === 'true';
           
-          console.log('Auth callback - User:', userEmail);
-          console.log('Auth callback - Type:', authType);
-          console.log('Auth callback - Org slug:', orgSlugFromUrl);
-          console.log('Auth callback - Is invitation:', isInvitation);
-          console.log('Auth callback - Is email confirmation:', isEmailConfirmation);
-          console.log('Auth callback - Is password reset:', isPasswordReset);
+          console.log('Auth callback details:', {
+            userEmail,
+            authType,
+            orgSlugFromUrl,
+            isInvitation,
+            isEmailConfirmation,
+            isPasswordReset
+          });
 
-          // Handle password reset flow
+          // Handle password reset flow (not invitation related)
           if (isPasswordReset && !isInvitation) {
             console.log('Processing standard password reset');
             navigate('/auth?reset=true');
             return;
           }
 
-          // Handle invitation flow for new users (email confirmation from invitation)
-          if (isInvitation && userEmail && orgSlugFromUrl && isEmailConfirmation) {
-            console.log('Processing invitation signup - redirecting to password setup');
-            navigate('/auth?reset=true&invitation=true&org=' + orgSlugFromUrl);
-            return;
-          }
-
           // Handle invitation flow for password reset completion
           if (isInvitation && userEmail && orgSlugFromUrl && isPasswordReset) {
-            console.log('Processing invitation after password reset - adding user to organization');
+            console.log('Processing invitation after password reset');
             await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
             return;
           }
 
-          // Handle invitation flow for existing users (direct login)
-          if (isInvitation && userEmail && orgSlugFromUrl && !isEmailConfirmation && !isPasswordReset) {
-            console.log('Processing invitation for existing user login');
+          // Handle invitation flow (both signup and existing user login)
+          if (isInvitation && userEmail && orgSlugFromUrl) {
+            console.log('Processing invitation flow');
             await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
             return;
           }
 
-          // Handle email confirmation (signup) flow or regular login
+          // Handle standard email confirmation or login
           console.log('Processing standard auth flow');
           
           // Add delay to ensure database consistency
@@ -99,9 +94,10 @@ const AuthCallback: React.FC = () => {
 
     const handleInvitationFlow = async (data: any, orgSlugFromUrl: string, userEmail: string) => {
       try {
-        console.log('Starting invitation processing for:', userEmail, 'to org:', orgSlugFromUrl);
+        console.log('=== INVITATION FLOW PROCESSING ===');
+        console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
         
-        // Validate organization slug before querying
+        // Validate organization slug before processing
         if (!isValidSlug(orgSlugFromUrl)) {
           console.error('Invalid organization slug:', orgSlugFromUrl);
           setError('Invalid organization invitation');
@@ -109,18 +105,20 @@ const AuthCallback: React.FC = () => {
           return;
         }
 
-        // Use the invitation processor hook to handle the invitation
+        // Use the invitation processor to handle the invitation
         const result = await processInvitation(userEmail, orgSlugFromUrl, data.session.user.id);
         
         if (result.success) {
-          console.log('Invitation processed successfully, user should be redirected to org dashboard');
-          // The processInvitation hook handles the redirect, so we don't need to do anything else
+          console.log('=== INVITATION PROCESSED SUCCESSFULLY ===');
+          // The processInvitation function handles the redirect
         } else {
-          console.error('Invitation processing failed:', result.error);
+          console.error('=== INVITATION PROCESSING FAILED ===');
+          console.error('Error:', result.error);
           setError('Failed to process invitation: ' + result.error);
           setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
         }
       } catch (error) {
+        console.error('=== INVITATION FLOW ERROR ===');
         console.error('Error handling invitation flow:', error);
         setError('Failed to process invitation');
         setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
@@ -132,7 +130,6 @@ const AuthCallback: React.FC = () => {
 
   const isValidSlug = (slug: string): boolean => {
     // Check if slug looks like a valid organization slug
-    // Reject known system paths and invalid patterns
     const invalidSlugs = ['auth-callback', 'auth', 'admin', 'api', 'callback', 'login', 'signup'];
     const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
     

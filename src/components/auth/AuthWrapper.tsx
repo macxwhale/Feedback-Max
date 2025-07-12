@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -63,7 +62,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signUp = async (email: string, password: string) => {
     try {
-      const redirectUrl = createAuthRedirectUrl('/auth-callback?type=signup');
+      // Check if this is an invitation signup by looking at current URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const isInvitation = urlParams.get('invitation') === 'true';
+      const orgSlug = urlParams.get('org');
+      
+      let redirectUrl = createAuthRedirectUrl('/auth-callback?type=signup');
+      
+      // If this is an invitation signup, preserve the invitation parameters
+      if (isInvitation && orgSlug) {
+        console.log('Invitation signup detected, preserving parameters');
+        redirectUrl = createAuthRedirectUrl(`/auth-callback?type=signup&invitation=true&org=${orgSlug}`);
+      }
+      
+      console.log('Using redirect URL for signup:', redirectUrl);
       
       const { error } = await supabase.auth.signUp({
         email,

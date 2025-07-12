@@ -39,6 +39,7 @@ const AuthCallback: React.FC = () => {
           const orgSlugFromUrl = searchParams.get('org');
           const isInvitation = searchParams.get('invitation') === 'true';
           
+          console.log('=== AUTH CALLBACK PROCESSING ===');
           console.log('Auth callback details:', {
             userEmail,
             authType,
@@ -48,24 +49,39 @@ const AuthCallback: React.FC = () => {
             isPasswordReset
           });
 
+          // CRITICAL: Handle invitation flow FIRST before any other processing
+          if (isInvitation && userEmail && orgSlugFromUrl) {
+            console.log('=== INVITATION FLOW DETECTED ===');
+            console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
+            
+            // Validate organization slug before processing
+            if (!isValidSlug(orgSlugFromUrl)) {
+              console.error('Invalid organization slug:', orgSlugFromUrl);
+              setError('Invalid organization invitation');
+              setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Invalid organization invitation')), 2000);
+              return;
+            }
+
+            // Process the invitation
+            const result = await processInvitation(userEmail, orgSlugFromUrl, data.session.user.id);
+            
+            if (result.success) {
+              console.log('=== INVITATION PROCESSED SUCCESSFULLY ===');
+              // The processInvitation function handles the redirect
+              return;
+            } else {
+              console.error('=== INVITATION PROCESSING FAILED ===');
+              console.error('Error:', result.error);
+              setError('Failed to process invitation: ' + result.error);
+              setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
+              return;
+            }
+          }
+
           // Handle password reset flow (not invitation related)
           if (isPasswordReset && !isInvitation) {
             console.log('Processing standard password reset');
             navigate('/auth?reset=true');
-            return;
-          }
-
-          // Handle invitation flow for password reset completion
-          if (isInvitation && userEmail && orgSlugFromUrl && isPasswordReset) {
-            console.log('Processing invitation after password reset');
-            await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
-            return;
-          }
-
-          // Handle invitation flow (both signup and existing user login)
-          if (isInvitation && userEmail && orgSlugFromUrl) {
-            console.log('Processing invitation flow');
-            await handleInvitationFlow(data, orgSlugFromUrl, userEmail);
             return;
           }
 
@@ -84,44 +100,12 @@ const AuthCallback: React.FC = () => {
           navigate('/auth');
         }
       } catch (error) {
+        console.error('=== AUTH CALLBACK ERROR ===');
         console.error('Callback processing error:', error);
         setError('Authentication failed. Please try again.');
         setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Authentication failed')), 2000);
       } finally {
         setLoading(false);
-      }
-    };
-
-    const handleInvitationFlow = async (data: any, orgSlugFromUrl: string, userEmail: string) => {
-      try {
-        console.log('=== INVITATION FLOW PROCESSING ===');
-        console.log('Processing invitation for:', userEmail, 'to org:', orgSlugFromUrl);
-        
-        // Validate organization slug before processing
-        if (!isValidSlug(orgSlugFromUrl)) {
-          console.error('Invalid organization slug:', orgSlugFromUrl);
-          setError('Invalid organization invitation');
-          setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Invalid organization invitation')), 2000);
-          return;
-        }
-
-        // Use the invitation processor to handle the invitation
-        const result = await processInvitation(userEmail, orgSlugFromUrl, data.session.user.id);
-        
-        if (result.success) {
-          console.log('=== INVITATION PROCESSED SUCCESSFULLY ===');
-          // The processInvitation function handles the redirect
-        } else {
-          console.error('=== INVITATION PROCESSING FAILED ===');
-          console.error('Error:', result.error);
-          setError('Failed to process invitation: ' + result.error);
-          setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
-        }
-      } catch (error) {
-        console.error('=== INVITATION FLOW ERROR ===');
-        console.error('Error handling invitation flow:', error);
-        setError('Failed to process invitation');
-        setTimeout(() => navigate('/auth?error=' + encodeURIComponent('Failed to process invitation')), 2000);
       }
     };
 

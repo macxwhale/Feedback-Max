@@ -127,6 +127,7 @@ export function useAuthFlow() {
     const { error: signUpError } = await signUp(email, password);
     
     if (signUpError) {
+      console.error('Signup error:', signUpError);
       setError(signUpError.message);
       setLoading(false);
       return;
@@ -136,6 +137,8 @@ export function useAuthFlow() {
       ? "Account created! Please check your email to verify your account and join the organization."
       : "Account created! Please check your email to verify your account.";
 
+    console.log('Signup successful for invitation:', isInvitation);
+    
     toast({
       title: "Account created!",
       description: successMessage,

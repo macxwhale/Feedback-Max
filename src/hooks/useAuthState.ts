@@ -17,10 +17,12 @@ const checkUserRoles = async (userId: string) => {
       console.error('Error checking admin status:', adminError);
     }
     
+    // Get organization data with enhanced role
     const { data: orgData, error: orgError } = await supabase
       .from('organization_users')
-      .select('organization_id, role, organizations(slug)')
+      .select('organization_id, role, enhanced_role, organizations(slug)')
       .eq('user_id', userId)
+      .eq('status', 'active')
       .single();
     
     if (orgError && orgError.code !== 'PGRST116') {
@@ -30,7 +32,12 @@ const checkUserRoles = async (userId: string) => {
     const isAdmin = !!adminStatus;
     const hasOrgRole = !!orgData?.organization_id;
 
-    console.log('User roles determined:', { isAdmin, hasOrgRole, orgData });
+    console.log('User roles determined:', { 
+      isAdmin, 
+      hasOrgRole, 
+      orgData,
+      enhancedRole: orgData?.enhanced_role 
+    });
 
     return {
       isAdmin,

@@ -4,18 +4,28 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/AuthWrapper";
 import { LogOut, User } from "lucide-react";
 import { toast } from "sonner";
+import { useRBAC } from "@/hooks/useRBAC";
+import { getRoleConfig } from "@/utils/roleManagement";
 
 export const DashboardUserMenu: React.FC = () => {
-  const { user, isAdmin, isOrgAdmin, signOut } = useAuth();
-
-  let role = "Member";
-  if (isAdmin) role = "System Admin";
-  else if (isOrgAdmin) role = "Organization Admin";
+  const { user, isAdmin, signOut, currentOrganization } = useAuth();
+  const { userRole, isLoading } = useRBAC(currentOrganization);
 
   const handleLogout = async () => {
     await signOut();
     toast.success("Successfully signed out.");
   };
+
+  // Determine role display
+  let role = "Member";
+  let roleConfig = null;
+
+  if (isAdmin) {
+    role = "System Admin";
+  } else if (userRole) {
+    roleConfig = getRoleConfig(userRole);
+    role = roleConfig.label;
+  }
 
   return (
     <div className="flex items-center gap-3 ml-3">
@@ -25,9 +35,12 @@ export const DashboardUserMenu: React.FC = () => {
           <span className="font-medium text-gray-900 dark:text-white">
             {user?.email || "—"}
           </span>
-          <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-            {role}
-          </span>
+          <div className="flex items-center gap-1">
+            {roleConfig?.icon && <roleConfig.icon className="w-3 h-3 text-orange-600" />}
+            <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+              {isLoading ? "Loading..." : role}
+            </span>
+          </div>
         </div>
       </div>
       <Button

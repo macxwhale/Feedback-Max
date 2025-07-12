@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -119,9 +118,9 @@ const InvitationAccept: React.FC = () => {
 
       setSuccess(true);
       
-      // Redirect after a short delay
+      // Redirect to auth page after processing
       setTimeout(() => {
-        navigate(data.data.redirect_url);
+        navigate('/auth');
       }, 2000);
 
     } catch (err: any) {
@@ -187,7 +186,7 @@ const InvitationAccept: React.FC = () => {
               Your account has been created successfully. You are now a member of {invitation?.organizations.name}.
             </p>
             <p className="text-sm text-gray-500">
-              Redirecting to your organization dashboard...
+              Redirecting to sign in page...
             </p>
           </CardContent>
         </Card>

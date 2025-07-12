@@ -40,6 +40,9 @@ verify_jwt = false
 [functions.send-sms-flask]
 verify_jwt = true
 
+[functions.process-invitation]
+verify_jwt = false
+
 [realtime]
 enabled = true
 port = 54323

@@ -106,14 +106,18 @@ serve(async (req: Request) => {
 
     console.log('User found, sending password reset email');
 
-    // Send password reset email using Supabase's built-in system
+    // Use admin.generateLink instead of resetPasswordForEmail for more control
     const baseUrl = getBaseUrl(req);
     const redirectUrl = `${baseUrl}/reset-password`;
     
     console.log('Using redirect URL:', redirectUrl);
 
-    const { error: emailError } = await supabaseAdmin.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
-      redirectTo: redirectUrl,
+    const { data: linkData, error: emailError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: email.toLowerCase().trim(),
+      options: {
+        redirectTo: redirectUrl,
+      }
     });
 
     if (emailError) {
@@ -127,7 +131,7 @@ serve(async (req: Request) => {
       });
     }
 
-    console.log('Password reset email sent successfully');
+    console.log('Password reset link generated successfully:', linkData.properties.action_link);
 
     return new Response(JSON.stringify({
       success: true,

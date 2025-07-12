@@ -376,6 +376,44 @@ export type Database = {
           },
         ]
       }
+      invitation_events: {
+        Row: {
+          created_at: string | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          invitation_id: string
+          ip_address: unknown | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          invitation_id: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          invitation_id?: string
+          ip_address?: unknown | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_events_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "user_invitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1363,21 +1401,29 @@ export type Database = {
       }
       user_invitations: {
         Row: {
+          accepted_at: string | null
           created_at: string
           email: string
+          email_opened_at: string | null
           enhanced_role: Database["public"]["Enums"]["enhanced_org_role"] | null
           expires_at: string
           id: string
           invitation_token: string
           invited_by_user_id: string
+          ip_address: unknown | null
+          last_resent_at: string | null
           organization_id: string
+          resend_count: number | null
           role: string
           status: string
           updated_at: string
+          user_agent: string | null
         }
         Insert: {
+          accepted_at?: string | null
           created_at?: string
           email: string
+          email_opened_at?: string | null
           enhanced_role?:
             | Database["public"]["Enums"]["enhanced_org_role"]
             | null
@@ -1385,14 +1431,20 @@ export type Database = {
           id?: string
           invitation_token?: string
           invited_by_user_id: string
+          ip_address?: unknown | null
+          last_resent_at?: string | null
           organization_id: string
+          resend_count?: number | null
           role?: string
           status?: string
           updated_at?: string
+          user_agent?: string | null
         }
         Update: {
+          accepted_at?: string | null
           created_at?: string
           email?: string
+          email_opened_at?: string | null
           enhanced_role?:
             | Database["public"]["Enums"]["enhanced_org_role"]
             | null
@@ -1400,10 +1452,14 @@ export type Database = {
           id?: string
           invitation_token?: string
           invited_by_user_id?: string
+          ip_address?: unknown | null
+          last_resent_at?: string | null
           organization_id?: string
+          resend_count?: number | null
           role?: string
           status?: string
           updated_at?: string
+          user_agent?: string | null
         }
         Relationships: [
           {
@@ -1619,6 +1675,16 @@ export type Database = {
         }
         Returns: string
       }
+      log_invitation_event: {
+        Args: {
+          p_invitation_id: string
+          p_event_type: string
+          p_event_data?: Json
+          p_ip_address?: unknown
+          p_user_agent?: string
+        }
+        Returns: string
+      }
       remove_user_from_organization: {
         Args: { p_user_id: string; p_organization_id: string }
         Returns: Json
@@ -1637,6 +1703,21 @@ export type Database = {
           is_valid: boolean
           org_id: string
           key_id: string
+        }[]
+      }
+      validate_invitation_token: {
+        Args: { p_token: string }
+        Returns: {
+          invitation_id: string
+          email: string
+          organization_id: string
+          organization_name: string
+          organization_slug: string
+          role: string
+          enhanced_role: Database["public"]["Enums"]["enhanced_org_role"]
+          expires_at: string
+          is_valid: boolean
+          error_message: string
         }[]
       }
     }

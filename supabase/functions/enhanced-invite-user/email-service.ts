@@ -28,16 +28,35 @@ export const sendInvitationEmail = async (
   inviterEmail: string,
   req: Request
 ): Promise<{ success: boolean; error?: string }> => {
+  // Get the invitation token
+  const { data: invitation } = await supabaseAdmin
+    .from('user_invitations')
+    .select('invitation_token')
+    .eq('email', email)
+    .eq('organization_id', organization.id)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!invitation) {
+    console.error('Could not find invitation token for email:', email);
+    return {
+      success: false,
+      error: 'Could not find invitation token'
+    };
+  }
+
   const baseUrl = getBaseUrl(req);
-  // Send invitation to password reset page with invitation parameters
-  const redirectUrl = `${baseUrl}/reset-password?invitation=true&org=${organization.slug}`;
+  // Use the new invitation acceptance URL with token
+  const invitationUrl = `${baseUrl}/invitation/accept/${invitation.invitation_token}`;
   
-  console.log('Using redirect URL for invitation:', redirectUrl);
+  console.log('Using invitation URL:', invitationUrl);
 
   const { data: inviteResponse, error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
     email,
     {
-      redirectTo: redirectUrl,
+      redirectTo: invitationUrl,
       data: {
         organization_name: organization.name,
         organization_slug: organization.slug,
@@ -45,7 +64,9 @@ export const sendInvitationEmail = async (
         role: role,
         enhanced_role: enhancedRole,
         inviter_email: inviterEmail,
-        invitation_type: 'organization_invite'
+        invitation_type: 'organization_invite',
+        invitation_token: invitation.invitation_token,
+        invitation_url: invitationUrl
       }
     }
   );
@@ -65,6 +86,13 @@ export const sendInvitationEmail = async (
       error: 'Failed to send invitation email. Please check the email address and try again.'
     };
   }
+
+  // Update invitation status to sent
+  await supabaseAdmin
+    .from('user_invitations')
+    .update({ status: 'sent' })
+    .eq('email', email)
+    .eq('organization_id', organization.id);
 
   console.log('Invitation email sent successfully via Supabase');
   return { success: true };

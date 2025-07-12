@@ -2,10 +2,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { validateRequestBody } from './validation.ts';
-import { authenticateUser, findExistingUser } from './auth.ts';
+import { authenticateUser } from './auth.ts';
 import { checkUserPermissions } from './permissions.ts';
 import { getOrganization } from './organization.ts';
-import { handleExistingUser, createInvitation } from './user-management.ts';
+import { createInvitation } from './user-management.ts';
 import { sendInvitationEmail } from './email-service.ts';
 import { InviteUserResponse } from './types.ts';
 
@@ -111,47 +111,73 @@ serve(async (req: Request) => {
       return createResponse({ success: false, error: orgError }, 404);
     }
 
-    // Check if user exists
-    const { userId: existingUserId, exists: userExists } = await findExistingUser(
-      supabaseAdmin, 
-      inviteData.email
-    );
+    // Check if there's already a pending invitation
+    const { data: existingInvitation } = await supabaseAdmin
+      .from('user_invitations')
+      .select('id')
+      .eq('email', inviteData.email.toLowerCase().trim())
+      .eq('organization_id', inviteData.organizationId)
+      .eq('status', 'pending')
+      .single();
 
-    let result: InviteUserResponse;
+    if (existingInvitation) {
+      console.log('Existing invitation found');
+      return createResponse({
+        success: false,
+        error: 'An invitation is already pending for this email address'
+      }, 400);
+    }
 
-    if (userExists && existingUserId) {
-      // Handle existing user
-      result = await handleExistingUser(
-        supabaseAdmin, 
-        existingUserId, 
-        inviteData, 
-        user.id
-      );
-    } else {
-      // Create invitation for new user
-      result = await createInvitation(supabaseAdmin, inviteData, user.id);
-      
-      if (result.success) {
-        // Send invitation email
-        const emailResult = await sendInvitationEmail(
-          supabaseAdmin,
-          inviteData.email,
-          organization,
-          inviteData.role,
-          inviteData.enhancedRole,
-          user.email || 'system',
-          req
-        );
-        
-        if (!emailResult.success) {
-          return createResponse({ success: false, error: emailResult.error }, 500);
-        }
-        
-        result.message = 'Invitation sent successfully! The user will receive an email to join the organization.';
+    // Check if user already exists and is already in the organization
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = existingUsers.users.find(u => u.email === inviteData.email.toLowerCase().trim());
+
+    if (existingUser) {
+      const { data: existingOrgUser } = await supabaseAdmin
+        .from('organization_users')
+        .select('id')
+        .eq('user_id', existingUser.id)
+        .eq('organization_id', inviteData.organizationId)
+        .single();
+
+      if (existingOrgUser) {
+        console.log('User is already a member of this organization');
+        return createResponse({
+          success: false,
+          error: 'User is already a member of this organization'
+        }, 400);
       }
     }
 
-    return createResponse(result, result.success ? 200 : 400);
+    // Create invitation for the user (whether they exist or not)
+    const result = await createInvitation(supabaseAdmin, inviteData, user.id);
+    
+    if (!result.success) {
+      return createResponse(result, 400);
+    }
+
+    // Send invitation email
+    const emailResult = await sendInvitationEmail(
+      supabaseAdmin,
+      inviteData.email,
+      organization,
+      inviteData.role,
+      inviteData.enhancedRole,
+      user.email || 'system',
+      req
+    );
+    
+    if (!emailResult.success) {
+      return createResponse({ success: false, error: emailResult.error }, 500);
+    }
+    
+    const finalResult: InviteUserResponse = {
+      ...result,
+      message: 'Invitation sent successfully! The user will receive an email with instructions to join the organization.',
+      type: 'invitation_sent'
+    };
+
+    return createResponse(finalResult, 200);
 
   } catch (error) {
     console.error('Error in enhanced-invite-user:', error);

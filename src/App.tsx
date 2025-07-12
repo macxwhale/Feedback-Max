@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -23,6 +22,7 @@ import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import AuthCallback from './pages/AuthCallback';
 import ResetPassword from './pages/ResetPassword';
+import InvitationAccept from './pages/InvitationAccept';
 
 const queryClient = new QueryClient();
 
@@ -63,6 +63,9 @@ function App() {
                 
                 {/* Password reset page */}
                 <Route path="/reset-password" element={<ResetPassword />} />
+                
+                {/* Invitation acceptance - NEW ROUTE */}
+                <Route path="/invitation/accept/:token" element={<InvitationAccept />} />
                 
                 {/* Auth callback - FIXED route */}
                 <Route path="/auth-callback" element={<AuthCallback />} />

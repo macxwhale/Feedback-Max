@@ -3,9 +3,11 @@ import React from 'react';
 import { useRBAC } from '@/hooks/useRBAC';
 import { useAuth } from '@/components/auth/AuthWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, Lock, UserX, Loader2 } from 'lucide-react';
+import { AlertTriangle, Lock, UserX, Loader2, Mail } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { getRoleConfig } from '@/utils/roleManagement';
+import { useOrganization } from '@/context/OrganizationContext';
 
 interface PermissionGuardProps {
   children: React.ReactNode;
@@ -13,6 +15,7 @@ interface PermissionGuardProps {
   organizationId?: string;
   fallback?: React.ReactNode;
   showRequiredRole?: boolean;
+  onRequestAccess?: () => void;
 }
 
 export const PermissionGuard: React.FC<PermissionGuardProps> = ({
@@ -20,10 +23,12 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   permission,
   organizationId,
   fallback,
-  showRequiredRole = true
+  showRequiredRole = true,
+  onRequestAccess
 }) => {
   const { hasPermission, userRole, isLoading, isAdmin, error } = useRBAC(organizationId);
   const { isOrgAdmin } = useAuth();
+  const { organization } = useOrganization();
 
   if (isLoading) {
     return (
@@ -85,7 +90,7 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center text-red-600">
           <Lock className="w-5 h-5 mr-2" />
-          Access Restricted
+          Permission Required
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -94,6 +99,22 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
           <span className="text-sm text-gray-600">
             You don't have permission to access this feature.
           </span>
+        </div>
+        
+        {/* Organization context */}
+        {organization && (
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-sm text-gray-600">
+              <span className="font-medium">Organization:</span> {organization.name}
+            </p>
+          </div>
+        )}
+        
+        {/* Permission details */}
+        <div className="bg-blue-50 rounded-lg p-3">
+          <p className="text-sm text-blue-800">
+            <span className="font-medium">Required permission:</span> {permission}
+          </p>
         </div>
         
         {showRequiredRole && (
@@ -118,9 +139,19 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
           </div>
         )}
         
-        <p className="text-xs text-gray-500">
-          Contact your organization administrator to request access.
-        </p>
+        {/* Action buttons */}
+        <div className="flex flex-col space-y-2">
+          {onRequestAccess && (
+            <Button onClick={onRequestAccess} size="sm" className="w-full">
+              <Mail className="w-4 h-4 mr-2" />
+              Request Access
+            </Button>
+          )}
+          
+          <p className="text-xs text-gray-500 text-center">
+            Contact your organization administrator to request the required permissions.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -130,7 +161,7 @@ function getRequiredRoleForPermission(permission: string): string {
   const permissionRoleMap: Record<string, string> = {
     'view_analytics': 'viewer',
     'export_data': 'analyst',
-    'manage_questions': 'admin',
+    'manage_questions': 'manager',
     'manage_users': 'admin',
     'manage_integrations': 'admin',
     'manage_organization': 'admin',

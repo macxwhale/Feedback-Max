@@ -2,17 +2,22 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthWrapper';
+import { SystemAdminRequired } from './SystemAdminRequired';
+import { OrganizationAdminRequired } from './OrganizationAdminRequired';
+import { AuthenticationRequired } from './AuthenticationRequired';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
   requireOrgAdmin?: boolean;
+  showAccessDeniedPage?: boolean;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requireAdmin = false,
-  requireOrgAdmin = false 
+  requireOrgAdmin = false,
+  showAccessDeniedPage = true
 }) => {
   const [showAccessDenied, setShowAccessDenied] = useState(false);
 
@@ -39,11 +44,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
 
     if (!user) {
+      if (showAccessDeniedPage) {
+        return <AuthenticationRequired />;
+      }
       return <Navigate to="/auth" replace />;
     }
 
     if (requireAdmin && !isAdmin) {
       if (showAccessDenied) {
+        if (showAccessDeniedPage) {
+          return <SystemAdminRequired />;
+        }
         return <Navigate to="/" replace />;
       }
       return (
@@ -58,6 +69,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     if (requireOrgAdmin && !isOrgAdmin && !isAdmin) {
       if (showAccessDenied) {
+        if (showAccessDeniedPage) {
+          return <OrganizationAdminRequired />;
+        }
         return <Navigate to="/" replace />;
       }
       return (
@@ -74,6 +88,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   } catch (error) {
     // If useAuth fails (context not available), redirect to auth
     console.error('Auth context not available:', error);
+    if (showAccessDeniedPage) {
+      return <AuthenticationRequired />;
+    }
     return <Navigate to="/auth" replace />;
   }
 };

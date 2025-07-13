@@ -1,10 +1,10 @@
-
 import React, { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useResponsiveDesign } from '@/hooks/useResponsiveDesign';
 import { ResponsiveGrid } from '@/components/ui/responsive-layout';
+import { formatSafeTrendValue } from '@/utils/metricCalculations';
 
 export interface StatCard {
   id: string;
@@ -105,7 +105,7 @@ const StatCardComponent = memo<{ stat: StatCard; isLoading: boolean }>(({ stat, 
           <div className="flex items-center space-x-1 mb-3">
             {getTrendIcon(stat.change.trend)}
             <span className={`text-sm font-medium ${getTrendColor(stat.change.trend)}`}>
-              {stat.change.value > 0 ? '+' : ''}{stat.change.value}%
+              {stat.change.value > 0 ? '+' : ''}{formatSafeTrendValue(Math.abs(stat.change.value))}
             </span>
             <span className="text-sm text-muted-foreground">
               vs {stat.change.period}
@@ -138,7 +138,7 @@ export const EnhancedStatsGrid = memo<EnhancedStatsGridProps>(({
 }) => {
   const { isMobile, isTablet } = useResponsiveDesign();
   
-  // Filter out excluded cards
+  // Filter out excluded cards and validate stats with safe calculations
   const filteredStats = stats.filter(stat => {
     const excludedCards = [
       'quality-score', 
@@ -149,7 +149,22 @@ export const EnhancedStatsGrid = memo<EnhancedStatsGridProps>(({
       'performance-tracking',
       'enhanced-dashboard'
     ];
-    return !excludedCards.includes(stat.id);
+    
+    // Additional validation for stats
+    if (excludedCards.includes(stat.id)) return false;
+    
+    // Apply safe calculations to change values
+    if (stat.change && Math.abs(stat.change.value) > 100) {
+      console.warn('Large percentage value detected, applying safe bounds:', {
+        id: stat.id,
+        title: stat.title,
+        originalValue: stat.change.value
+      });
+      // Cap the change value using safe bounds
+      stat.change.value = Math.max(-100, Math.min(100, stat.change.value));
+    }
+    
+    return true;
   });
 
   if (filteredStats.length === 0) {

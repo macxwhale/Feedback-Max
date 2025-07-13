@@ -1,7 +1,12 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AnalyticsTableData, QuestionAnalytics, CategoryAnalytics, TrendDataPoint } from '@/types/analytics';
+import { 
+  calculateSafePercentageChange, 
+  calculateSafeGrowthRate, 
+  normalizeScore, 
+  validateSessionData 
+} from '@/utils/metricCalculations';
 
 export const useAnalyticsTableData = (organizationId: string) => {
   return useQuery({
@@ -75,45 +80,49 @@ export const useAnalyticsTableData = (organizationId: string) => {
         sessions: sessionsData?.length || 0
       });
 
-      // Calculate accurate metrics
-      const totalSessions = (sessionsData || []).length;
-      const completedSessions = (sessionsData || []).filter(s => s.status === 'completed').length;
-      const inProgressSessions = (sessionsData || []).filter(s => s.status === 'in_progress').length;
+      // Validate and clean session data
+      const cleanedSessions = validateSessionData(sessionsData || []);
+      
+      // Calculate accurate metrics with safe calculations
+      const totalSessions = cleanedSessions.length;
+      const completedSessions = cleanedSessions.filter(s => s.status === 'completed').length;
+      const inProgressSessions = cleanedSessions.filter(s => s.status === 'in_progress').length;
       const abandonedSessions = totalSessions - completedSessions - inProgressSessions;
 
       // Calculate completion rate accurately
       const completionRate = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
 
-      // Calculate average session score from completed sessions only
-      const completedSessionsWithScores = (sessionsData || []).filter(s => 
+      // Calculate average session score with normalization
+      const completedSessionsWithScores = cleanedSessions.filter(s => 
         s.status === 'completed' && s.total_score !== null
       );
-      const avgSessionScore = completedSessionsWithScores.length > 0 
-        ? completedSessionsWithScores.reduce((sum, s) => sum + (s.total_score || 0), 0) / completedSessionsWithScores.length 
+      
+      const normalizedScores = completedSessionsWithScores.map(s => normalizeScore(s.total_score));
+      const avgSessionScore = normalizedScores.length > 0 
+        ? normalizedScores.reduce((sum, score) => sum + score, 0) / normalizedScores.length 
         : 0;
 
-      // Calculate user satisfaction based on scores
-      const highSatisfactionSessions = completedSessionsWithScores.filter(s => (s.total_score || 0) >= 4).length;
-      const userSatisfactionRate = completedSessionsWithScores.length > 0 
-        ? Math.round((highSatisfactionSessions / completedSessionsWithScores.length) * 100) 
+      // Calculate user satisfaction based on normalized scores (4+ out of 5 is satisfied)
+      const highSatisfactionSessions = normalizedScores.filter(score => score >= 4).length;
+      const userSatisfactionRate = normalizedScores.length > 0 
+        ? Math.round((highSatisfactionSessions / normalizedScores.length) * 100) 
         : 0;
 
-      // Calculate growth metrics
+      // Calculate growth metrics with safe thresholds
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const sixtyDaysAgo = new Date();
       sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
-      const currentPeriodSessions = (sessionsData || []).filter(s => 
+      const currentPeriodSessions = cleanedSessions.filter(s => 
         new Date(s.created_at) >= thirtyDaysAgo
       ).length;
-      const previousPeriodSessions = (sessionsData || []).filter(s => 
+      const previousPeriodSessions = cleanedSessions.filter(s => 
         new Date(s.created_at) >= sixtyDaysAgo && new Date(s.created_at) < thirtyDaysAgo
       ).length;
 
-      const growthRate = previousPeriodSessions > 0 
-        ? Math.round(((currentPeriodSessions - previousPeriodSessions) / previousPeriodSessions) * 100)
-        : 0;
+      // Use safe growth rate calculation
+      const growthRate = calculateSafeGrowthRate(currentPeriodSessions, previousPeriodSessions);
 
       // Process questions analytics
       const questions: QuestionAnalytics[] = (questionsData || []).map(question => {
@@ -204,7 +213,7 @@ export const useAnalyticsTableData = (organizationId: string) => {
         };
       });
 
-      // Generate trend data from sessions (last 30 days)
+      // Generate trend data with safe calculations
       const trendData: TrendDataPoint[] = [];
       const last30Days = Array.from({ length: 30 }, (_, i) => {
         const date = new Date();
@@ -214,25 +223,26 @@ export const useAnalyticsTableData = (organizationId: string) => {
 
       last30Days.forEach(date => {
         const dateStr = date.toISOString().split('T')[0];
-        const daySessions = (sessionsData || []).filter(s => 
+        const daySessions = cleanedSessions.filter(s => 
           s.created_at.startsWith(dateStr)
         );
         
         const totalSessions = daySessions.length;
         const completedSessions = daySessions.filter(s => s.status === 'completed').length;
-        const completionRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
+        const completionRate = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
         
-        // Calculate average score for the day
+        // Calculate average score for the day with normalization
         const completedWithScores = daySessions.filter(s => s.status === 'completed' && s.total_score !== null);
-        const avgScore = completedWithScores.length > 0 
-          ? completedWithScores.reduce((sum, s) => sum + (s.total_score || 0), 0) / completedWithScores.length 
+        const dayNormalizedScores = completedWithScores.map(s => normalizeScore(s.total_score));
+        const avgScore = dayNormalizedScores.length > 0 
+          ? dayNormalizedScores.reduce((sum, score) => sum + score, 0) / dayNormalizedScores.length 
           : 0;
 
         trendData.push({
           date: dateStr,
           total_sessions: totalSessions,
           completed_sessions: completedSessions,
-          completion_rate: Math.round(completionRate),
+          completion_rate: completionRate,
           avg_score: Math.round(avgScore * 100) / 100
         });
       });
@@ -250,14 +260,14 @@ export const useAnalyticsTableData = (organizationId: string) => {
           user_satisfaction_rate: userSatisfactionRate,
           growth_rate: growthRate,
           abandoned_sessions: abandonedSessions,
-          response_rate: questions.length > 0 
+          response_rate: questions.length > 0 && totalSessions > 0
             ? Math.round((questions.reduce((sum, q) => sum + q.total_responses, 0) / (questions.length * totalSessions)) * 100)
             : 0
         },
         trendData
       };
 
-      console.log('Analytics result:', analyticsResult);
+      console.log('Analytics result with safe calculations:', analyticsResult);
       return analyticsResult;
     },
     enabled: !!organizationId,

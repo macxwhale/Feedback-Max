@@ -4,6 +4,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAnalyticsTableData } from '@/hooks/useAnalyticsTableData';
 import { TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
+import { 
+  calculateSafePerformanceScore, 
+  formatSafeTrendValue, 
+  calculateSafePercentageChange 
+} from '@/utils/metricCalculations';
 
 interface StrategicKPIDashboardProps {
   organizationId: string;
@@ -71,28 +76,24 @@ export const StrategicKPIDashboard: React.FC<StrategicKPIDashboardProps> = ({
 
   const summary = analyticsData.summary;
   
-  // Calculate actual performance score based on multiple metrics
-  const calculatePerformanceScore = () => {
-    if (summary.total_sessions === 0) return 0;
-    
-    const completionWeight = 0.4;
-    const satisfactionWeight = 0.4;
-    const responseWeight = 0.2;
-    
-    const completionScore = summary.overall_completion_rate;
-    const satisfactionScore = summary.user_satisfaction_rate;
-    const responseScore = summary.response_rate;
-    
-    return Math.round(
-      (completionScore * completionWeight) +
-      (satisfactionScore * satisfactionWeight) +
-      (responseScore * responseWeight)
-    );
-  };
+  // Use safe performance score calculation
+  const performanceScore = calculateSafePerformanceScore({
+    completionRate: summary.overall_completion_rate,
+    satisfactionRate: summary.user_satisfaction_rate,
+    responseRate: summary.response_rate
+  });
 
-  const performanceScore = calculatePerformanceScore();
-  const userSatisfaction = `${Math.round(summary.avg_score * 10) / 10}/5`;
+  const userSatisfaction = `${Math.round((summary.avg_score || 0) * 10) / 10}/5`;
+  
+  // Use safe growth rate (already calculated in the hook)
   const growthRate = summary.growth_rate;
+
+  console.log('Strategic KPI calculations:', {
+    performanceScore,
+    userSatisfaction,
+    growthRate,
+    summary
+  });
 
   // Determine status and colors based on actual performance
   const getPerformanceStatus = (score: number) => {
@@ -108,13 +109,13 @@ export const StrategicKPIDashboard: React.FC<StrategicKPIDashboardProps> = ({
   };
 
   const getGrowthStatus = (rate: number) => {
-    if (rate > 0) return { status: 'positive', color: 'green', icon: TrendingUp };
-    if (rate === 0) return { status: 'stable', color: 'orange', icon: AlertTriangle };
+    if (rate > 10) return { status: 'positive', color: 'green', icon: TrendingUp };
+    if (rate >= -10) return { status: 'stable', color: 'orange', icon: AlertTriangle };
     return { status: 'negative', color: 'red', icon: TrendingDown };
   };
 
   const performanceStatus = getPerformanceStatus(performanceScore);
-  const satisfactionStatus = getSatisfactionStatus(summary.avg_score);
+  const satisfactionStatus = getSatisfactionStatus(summary.avg_score || 0);
   const growthStatus = getGrowthStatus(growthRate);
 
   return (
@@ -128,7 +129,7 @@ export const StrategicKPIDashboard: React.FC<StrategicKPIDashboardProps> = ({
             </span>
             <Badge variant="outline" className={`text-${performanceStatus.color}-700`}>
               <performanceStatus.icon className="w-3 h-3 mr-1" />
-              {performanceScore >= 80 ? '+5%' : performanceScore >= 60 ? '±0%' : '-3%'}
+              {formatSafeTrendValue(performanceScore >= 80 ? 5 : performanceScore >= 60 ? 2 : -3)}
             </Badge>
           </div>
           <div className={`text-2xl font-bold text-${performanceStatus.color}-700 mb-1`}>
@@ -149,7 +150,7 @@ export const StrategicKPIDashboard: React.FC<StrategicKPIDashboardProps> = ({
             </span>
             <Badge variant="outline" className={`text-${satisfactionStatus.color}-700`}>
               <satisfactionStatus.icon className="w-3 h-3 mr-1" />
-              {summary.avg_score >= 4 ? '+8%' : summary.avg_score >= 3 ? '±2%' : '-5%'}
+              {formatSafeTrendValue((summary.avg_score || 0) >= 4 ? 8 : (summary.avg_score || 0) >= 3 ? 2 : -5)}
             </Badge>
           </div>
           <div className={`text-2xl font-bold text-${satisfactionStatus.color}-700 mb-1`}>
@@ -170,11 +171,11 @@ export const StrategicKPIDashboard: React.FC<StrategicKPIDashboardProps> = ({
             </span>
             <Badge variant="outline" className={`text-${growthStatus.color}-700`}>
               <growthStatus.icon className="w-3 h-3 mr-1" />
-              {growthRate > 0 ? '+12%' : growthRate === 0 ? '±0%' : '-8%'} acceleration
+              {formatSafeTrendValue(Math.abs(growthRate))} {growthRate > 0 ? 'growth' : 'change'}
             </Badge>
           </div>
           <div className={`text-2xl font-bold text-${growthStatus.color}-700 mb-1`}>
-            {growthRate > 0 ? '+' : ''}{growthRate}%
+            {growthRate > 0 ? '+' : ''}{formatSafeTrendValue(growthRate)}
           </div>
           <p className={`text-xs text-${growthStatus.color}-600`}>
             Month-over-month growth rate

@@ -6,7 +6,6 @@
 - src/components/admin/QuestionTypeForm.tsx
 - src/components/admin/QuestionsList.tsx
 - src/components/admin/QuestionsManagement.tsx
-- src/components/admin/RecentActivityCard.tsx
 - src/components/admin/RoleBadge.tsx
 - src/components/admin/SimpleUserManagementHeader.tsx
 - src/components/admin/UserAvatar.tsx

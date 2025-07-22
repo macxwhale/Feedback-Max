@@ -1,28 +1,28 @@
 # UserManagementTabs.tsx
 
 ## Purpose
-Provides the tab navigation for the user management section within the admin dashboard, allowing switching between "Members" and "Pending Invitations".
+Provides a simple tab navigation component for switching between "Members" and "Pending Invitations" views within the user management section.
 
 ## Key Functionality
-- Displays two tabs: "Active Members" and "Pending Invitations".
+- Displays two tabs: "Members" and "Pending Invitations".
 - Shows the count of members and pending invitations next to the tab labels using a `Badge`.
-- Takes the currently active tab and a function to set the active tab as props.
-- Visually indicates the currently active tab.
-- Uses icons to represent each tab.
+- Uses icons (`Users`, `Mail`) to visually represent each tab.
+- Highlights the currently active tab.
+- Triggers the `setActiveTab` function when a tab is clicked to switch views.
 
 ## Dependencies
 - lucide-react for icons
-- `@/components/ui/badge` for the count badge
+- `@/components/ui/badge` for displaying counts
 
 ## Relationship to other files
-Used within the user management interface (`UserManagement.tsx`) to control which list (members or invitations) is currently displayed.
+Used within the `UserManagement.tsx` component to provide navigation between the list of active members and the list of pending invitations. It controls which list is displayed based on the active tab state.
 
 ### Component Details
 - Props:
-  - activeTab: String indicating the currently active tab ('members' or 'invitations').
+  - activeTab: A string indicating the currently active tab ('members' or 'invitations').
   - setActiveTab: Function to call when a tab is clicked to change the active tab.
-  - membersCount: The number of active members to display in the tab label.
-  - invitationsCount: The number of pending invitations to display in the tab label.
-- State: None managed within this component; state is managed by the parent component.
-- Styling: Tailwind CSS for layout, styling, and active/inactive tab appearance.
-- Accessibility: Uses button elements for tabs with appropriate text labels and visual indicators for the active state.
+  - membersCount: The number of active members to display in the Members tab badge.
+  - invitationsCount: The number of pending invitations to display in the Pending Invitations tab badge.
+- State: None managed within this component.
+- Styling: Tailwind CSS for layout, styling, and interactive states of the tabs.
+- Accessibility: Uses semantic `button` elements for tabs and provides visual feedback for the active state. Icons and text labels provide clear information about each tab's content.

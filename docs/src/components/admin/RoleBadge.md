@@ -1,24 +1,25 @@
 # RoleBadge.tsx
 
 ## Purpose
-A simple component to display a user's role using a badge with an associated icon and label.
+A simple component to display a user's role using a badge with an icon and label.
 
 ## Key Functionality
 - Takes a role string as input.
-- Uses the `getRoleConfig` utility to find the appropriate visual representation (variant, icon, label) for the role.
-- Renders a `Badge` component from the UI library with the role's configured style and icon.
+- Uses the `getRoleConfig` utility to get the corresponding badge variant, icon, and label.
+- Renders a `Badge` component from the UI library.
+- Displays an icon and the role label within the badge.
 
 ## Dependencies
 - `@/components/ui/badge` for the badge component
 - `@/utils/roleManagement` for retrieving role configuration
-- lucide-react for icons (indirectly through `getRoleConfig`)
+- lucide-react for icons (implicitly used via `getRoleConfig`)
 
 ## Relationship to other files
-Used in various parts of the application where user roles need to be visually displayed, often in lists or user profiles. Relies on the role configuration defined in `roleManagement.ts`.
+Used in various places where a user's role needs to be visually represented, often in lists or tables of users/members. It's a simpler version compared to `EnhancedRoleBadge`.
 
 ### Component Details
 - Props:
-  - role: The role string to display.
+  - role: The role string (e.g., 'admin', 'member').
 - State: None managed within this component.
-- Styling: Tailwind CSS (via `Badge` component) and inline flex styles for layout.
-- Accessibility: Uses a semantic `<span>` (rendered by `Badge`) with descriptive text and a visual icon.
+- Styling: Tailwind CSS for layout and spacing within the badge.
+- Accessibility: Provides a visual indicator of the user's role.

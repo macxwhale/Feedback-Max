@@ -1,22 +1,21 @@
 # SimpleUserManagementHeader.tsx
 
 ## Purpose
-Displays a simple header for user management sections, showing the context of which organization's users are being managed.
+Displays a simple header for the user management section within the organization admin dashboard.
 
 ## Key Functionality
-- Takes the organization name as a prop.
-- Displays a main heading "User Management".
-- Provides a subtitle indicating that the user management is for the specified organization.
+- Shows a clear heading "User Management".
+- Provides a brief description indicating which organization's users are being managed.
 
 ## Dependencies
-None significant.
+- None significant.
 
 ## Relationship to other files
-Used within user management components to provide a clear heading and context. It's a presentational component.
+Used within the user management interface (likely in `UserManagement.tsx` or similar) to provide context for the displayed user list and invitations.
 
 ### Component Details
 - Props:
-  - organizationName: The name of the organization.
+  - organizationName: The name of the organization being managed.
 - State: None managed within this component.
-- Styling: Tailwind CSS for text styling and layout.
-- Accessibility: Standard HTML heading and paragraph elements.
+- Styling: Tailwind CSS for layout and typography.
+- Accessibility: Uses semantic heading and paragraph elements for structure.

@@ -10,5 +10,3 @@
 - src/components/admin/RoleBadge.tsx
 - src/components/admin/SimpleUserManagementHeader.tsx
 - src/components/admin/UserAvatar.tsx
-- src/components/admin/UserManagement.tsx
-- src/components/admin/UserManagementTabs.tsx

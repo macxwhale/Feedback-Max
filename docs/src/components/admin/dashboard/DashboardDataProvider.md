@@ -1,15 +1,3 @@
-# DashboardDataProvider.tsx
+src/components/admin/dashboard/DashboardDataProvider.tsx
 
-## Purpose
-
-## Key Functionality
-
-## Dependencies
-
-## Architecture Notes
-
-### Component Details
-- Props: 
-- State: 
-- Styling: 
-- Accessibility: 
+This React component acts as a data provider for the dashboard, fetching and providing organization-specific data and analytics to its children components. It utilizes the `useOrganization` hook to get the current organization's information and the `@tanstack/react-query` library to manage data fetching for organization statistics and analytics data using `useQuery` and `useAnalyticsData` hooks respectively. It consolidates the loading and error states from these data sources and provides them through a React Context, `DashboardContext`. The `useDashboardData` hook is provided to easily consume this context in child components. This component is crucial for centralizing data fetching logic and making it accessible throughout the dashboard.

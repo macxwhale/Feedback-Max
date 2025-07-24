@@ -20,3 +20,8 @@
 - src/components/admin/dashboard/AnalyticsSummaryCards.tsx
 - src/components/admin/dashboard/AnalyticsTable.tsx
 - src/components/admin/dashboard/ContextualActionMenu.tsx
+- src/components/admin/dashboard/CustomerInsightsDashboard.tsx
+- src/components/admin/dashboard/DashboardBreadcrumb.tsx
+- src/components/admin/dashboard/DashboardCharts.tsx
+- src/components/admin/dashboard/DashboardCustomization.tsx
+- src/components/admin/dashboard/DashboardDataProvider.tsx

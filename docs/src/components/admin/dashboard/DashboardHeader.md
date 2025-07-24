@@ -1,15 +1,3 @@
-# DashboardHeader.tsx
+## `src/components/admin/dashboard/DashboardHeader.tsx`
 
-## Purpose
-
-## Key Functionality
-
-## Dependencies
-
-## Architecture Notes
-
-### Component Details
-- Props: 
-- State: 
-- Styling: 
-- Accessibility: 
+This file defines the `DashboardHeader` React component, which serves as the header for the admin dashboard. It includes key navigation and information elements such as a sidebar trigger, a global search bar with a keyboard shortcut, a real-time clock showing the current time in a specific timezone, a notification dropdown, and a user profile section. The header also displays a personalized greeting to the user based on the time of day and shows the currently active organization's name and status. This component enhances the user experience by providing quick access to essential features and relevant information at a glance.

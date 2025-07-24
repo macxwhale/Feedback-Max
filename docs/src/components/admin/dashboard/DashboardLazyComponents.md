@@ -1,15 +1,3 @@
-# DashboardLazyComponents.tsx
+## `src/components/admin/dashboard/DashboardLazyComponents.tsx`
 
-## Purpose
-
-## Key Functionality
-
-## Dependencies
-
-## Architecture Notes
-
-### Component Details
-- Props: 
-- State: 
-- Styling: 
-- Accessibility: 
+This file is responsible for implementing lazy loading for various components within the admin dashboard. It utilizes React's `lazy` function to dynamically import components like `CustomerInsightsDashboard`, `PerformanceAnalyticsDashboard`, `SentimentAnalyticsDashboard`, and `AdvancedDashboardView`. This approach helps to reduce the initial loading time of the dashboard by only loading the necessary components when they are needed. The file also provides a `LazyComponentWrapper` component that uses `React.Suspense` to display a loading spinner (`EnhancedLoadingSpinner`) while the lazy-loaded components are being fetched. This ensures a smoother user experience during the loading process.

@@ -1,15 +1,3 @@
-# DashboardCustomization.tsx
+src/components/admin/dashboard/DashboardCustomization.tsx
 
-## Purpose
-
-## Key Functionality
-
-## Dependencies
-
-## Architecture Notes
-
-### Component Details
-- Props: 
-- State: 
-- Styling: 
-- Accessibility: 
+This component provides a modal interface for users to customize their dashboard view. It allows toggling the visibility of various dashboard widgets and configuring settings like auto-refresh and real-time updates. The component utilizes several UI components such as Dialog, Button, Label, Switch, and Checkbox to create the customization interface. It manages the state of visible widgets and dashboard settings, and includes a save function that would typically persist these preferences. Visual cues like eye icons indicate widget visibility status. It also incorporates a toast notification to confirm when settings are saved.

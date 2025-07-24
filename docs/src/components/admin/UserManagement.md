@@ -1,37 +1,36 @@
 # UserManagement.tsx
 
 ## Purpose
-Provides a comprehensive interface for managing users within a specific organization in the admin dashboard, including members and pending invitations.
+Provides the core user management interface for a specific organization within the admin dashboard.
 
 ## Key Functionality
-- Fetches active members and pending invitations using the `useUserManagementWithInvitations` hook.
-- Displays key member statistics using `MemberStats`.
-- Provides a modal to invite new users (`EnhancedInviteUserModal`).
-- Organizes the view into tabs for "Active Members" and "Pending Invitations".
-- Renders lists of members and invitations using `EnhancedMembersList` and `PendingInvitations` components.
-- Handles updating member roles and removing members using mutations and hooks (`useUserInvitation`, `useRemoveUser`).
-- Enforces permission checks using the `useRBAC` hook to ensure only authorized users can perform management actions.
-- Displays loading states and permission denial messages.
+- Fetches and displays lists of active members and pending invitations using the `useUserManagementWithInvitations` hook.
+- Shows summary statistics about members and pending invitations using `MemberStats`.
+- Provides a modal to invite new users via `EnhancedInviteUserModal`.
+- Allows updating the roles of existing members using `handleUpdateRole` from the hook, with permission checks via `useRBAC`.
+- Enables removing members using the `useRemoveUser` mutation hook, also with permission checks.
+- Organizes the interface into tabs for "Active Members" and "Pending Invitations".
+- Displays loading states and permission errors.
 
 ## Dependencies
-- lucide-react for icons
-- `@/components/ui/*` for various UI components (Alert, Tabs)
+- `@/hooks/useUserManagementWithInvitations`
+- `@/hooks/useUserInvitation` (specifically `useRemoveUser`)
+- `@/hooks/useRBAC`
 - `./EnhancedMembersList`
 - `./SimpleUserManagementHeader`
 - `./MemberStats`
 - `./EnhancedInviteUserModal`
 - `./PendingInvitations`
-- `@/hooks/useUserManagementWithInvitations`
-- `@/hooks/useUserInvitation`
-- `@/hooks/useRBAC`
+- `@/components/ui/*` for various UI components (Alert, Tabs)
+- lucide-react for icons
 
 ## Relationship to other files
-Used within the organization-specific admin dashboard to provide user management capabilities. It integrates several smaller components and hooks to deliver the full functionality.
+Used as a tab content within the organization admin dashboard. It integrates several other components and hooks to provide a full user management experience.
 
 ### Component Details
 - Props:
-  - organizationId: The ID of the organization.
-  - organizationName: The name of the organization.
-- State: Manages tab selection locally. Relies on hooks (`useUserManagementWithInvitations`, `useRBAC`) for data and permission states.
+  - organizationId: The ID of the organization for user management.
+  - organizationName: The name of the organization for display purposes.
+- State: Data fetching and mutation states are managed by the hooks used.
 - Styling: Tailwind CSS for layout and styling.
-- Accessibility: Uses tabbed interface for organization and provides descriptive text for sections and actions.
+- Accessibility: Uses semantic HTML elements and provides clear status indicators and error messages.

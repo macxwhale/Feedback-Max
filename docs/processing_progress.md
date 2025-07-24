@@ -15,3 +15,8 @@
 - src/components/admin/WebhookSettings.tsx
 - src/components/admin/ai/ConversationalAnalytics.tsx
 - src/components/admin/dashboard/AdvancedDashboardView.tsx
+- src/components/admin/dashboard/AnalyticsDashboard.tsx
+- src/components/admin/dashboard/AnalyticsInsights.tsx
+- src/components/admin/dashboard/AnalyticsSummaryCards.tsx
+- src/components/admin/dashboard/AnalyticsTable.tsx
+- src/components/admin/dashboard/ContextualActionMenu.tsx

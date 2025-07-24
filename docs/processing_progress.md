@@ -11,3 +11,5 @@
 - src/components/admin/SimpleUserManagementHeader.tsx
 - src/components/admin/UserAvatar.tsx
 - src/components/admin/UserManagement.tsx
+- src/components/admin/UserManagementTabs.tsx
+- src/components/admin/WebhookSettings.tsx

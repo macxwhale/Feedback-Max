@@ -13,3 +13,5 @@
 - src/components/admin/UserManagement.tsx
 - src/components/admin/UserManagementTabs.tsx
 - src/components/admin/WebhookSettings.tsx
+- src/components/admin/ai/ConversationalAnalytics.tsx
+- src/components/admin/dashboard/AdvancedDashboardView.tsx

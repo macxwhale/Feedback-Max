@@ -1,24 +1,24 @@
 # RoleBadge.tsx
 
 ## Purpose
-A reusable component to display a user's role as a styled badge with an accompanying icon.
+A simple presentational component to display a user's role using a badge with an associated icon and label.
 
 ## Key Functionality
-- Takes a user's role as a string prop.
-- Uses `getRoleConfig` utility to fetch display properties (variant, icon, label) for the given role.
-- Renders a `Badge` component with the role's visual styling and icon.
+- Takes a `role` string as input.
+- Uses `getRoleConfig` utility to determine the visual representation (variant, icon, label) for the given role.
+- Renders a `Badge` component from the UI library.
+- Displays the role icon and label within the badge.
 
 ## Dependencies
-- `@/components/ui/badge` for the badge UI
-- `@/utils/roleManagement` for role configuration lookup
-- lucide-react for icons (indirectly through `getRoleConfig`)
+- `@/components/ui/badge` for the badge component
+- `@/utils/roleManagement` for role configuration utility
 
 ## Relationship to other files
-Used in various parts of the application, particularly in admin and user management interfaces, to consistently display user roles.
+Used in various parts of the application, particularly within admin and user management interfaces, to consistently display user roles. Relies on the role configuration defined in `roleManagement.ts`.
 
 ### Component Details
 - Props:
-  - role: A string representing the user's role.
+  - role: The role string (e.g., 'admin', 'member').
 - State: None managed within this component.
-- Styling: Tailwind CSS is used via the `Badge` component and utility classes for layout (`flex`, `items-center`, `gap-1`).
-- Accessibility: Uses a semantic `Badge` element and includes an icon for visual representation of the role.
+- Styling: Uses Tailwind CSS classes via the `Badge` component and custom styling for flex layout.
+- Accessibility: Standard HTML structure within the badge. Icons provide visual cues.

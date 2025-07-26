@@ -1655,7 +1655,14 @@ export type Database = {
         Returns: Database["public"]["Enums"]["enhanced_org_role"]
       }
       invite_user_to_organization: {
-        Args: { p_email: string; p_organization_id: string; p_role?: string }
+        Args:
+          | { p_email: string; p_organization_id: string; p_role?: string }
+          | {
+              p_email: string
+              p_organization_id: string
+              p_role?: string
+              p_enhanced_role?: Database["public"]["Enums"]["enhanced_org_role"]
+            }
         Returns: Json
       }
       is_current_user_org_admin: {

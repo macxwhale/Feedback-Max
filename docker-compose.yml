@@ -20,6 +20,10 @@ services:
       - auth-service
       - organization-service
       - feedback-service
+      - analytics-service
+      - notification-service
+      - sms-service
+      - asset-service
       - redis
     networks:
       - microservices-network
@@ -51,6 +55,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
@@ -67,6 +72,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
@@ -83,6 +89,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
@@ -99,6 +106,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
@@ -115,6 +123,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
@@ -131,6 +140,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
@@ -159,7 +169,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3001:3000"
+      - "3008:3000"  # Changed from 3001 to 3008 to avoid conflict
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     networks:

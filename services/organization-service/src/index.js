@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const organizationRoutes = require('./routes/organizations');
+const { errorHandler } = require('./middleware/errorHandler');
 require('dotenv').config();
 
 const app = express();
@@ -10,9 +12,16 @@ const PORT = process.env.PORT || 3002;
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
 app.use(morgan('combined'));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.use('/organizations', organizationRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -23,21 +32,15 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Routes
-app.use('/api/organizations', require('./routes/organizations'));
-
 // Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ 
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
+app.use(errorHandler);
 
 // 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+  res.status(404).json({ 
+    success: false,
+    error: 'Route not found' 
+  });
 });
 
 app.listen(PORT, () => {

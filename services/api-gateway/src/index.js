@@ -20,7 +20,10 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 1000, // Increased limit for development
+  message: {
+    error: 'Too many requests from this IP, please try again later.'
+  }
 });
 app.use(limiter);
 
@@ -74,6 +77,7 @@ Object.entries(services).forEach(([serviceName, config]) => {
     onError: (err, req, res) => {
       console.error(`Proxy error for ${serviceName}:`, err.message);
       res.status(503).json({
+        success: false,
         error: `Service ${serviceName} unavailable`,
         message: 'Please try again later'
       });
@@ -93,9 +97,37 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Service status endpoint
+app.get('/api/status', async (req, res) => {
+  const serviceStatuses = {};
+  
+  for (const [name, config] of Object.entries(services)) {
+    try {
+      const response = await fetch(`${config.target}/health`);
+      serviceStatuses[name] = {
+        status: response.ok ? 'healthy' : 'unhealthy',
+        url: config.target
+      };
+    } catch (error) {
+      serviceStatuses[name] = {
+        status: 'unreachable',
+        url: config.target,
+        error: error.message
+      };
+    }
+  }
+  
+  res.json({
+    gateway: 'healthy',
+    services: serviceStatuses,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({
+    success: false,
     error: 'Route not found',
     path: req.originalUrl
   });
@@ -105,6 +137,7 @@ app.use('*', (req, res) => {
 app.use((err, req, res, next) => {
   console.error('Gateway error:', err);
   res.status(500).json({
+    success: false,
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
   });

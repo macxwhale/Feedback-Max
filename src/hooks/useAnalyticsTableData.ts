@@ -8,25 +8,6 @@ import {
   validateSessionData 
 } from '@/utils/metricCalculations';
 
-// Simple sentiment analysis function
-const analyzeSentiment = (text: string, score: number): 'positive' | 'negative' | 'neutral' => {
-  const lowerText = text.toLowerCase();
-  const positiveWords = ['good', 'great', 'excellent', 'amazing', 'love', 'fantastic', 'perfect', 'wonderful'];
-  const negativeWords = ['bad', 'terrible', 'awful', 'hate', 'horrible', 'disappointing', 'poor', 'worst'];
-  
-  const positiveCount = positiveWords.filter(word => lowerText.includes(word)).length;
-  const negativeCount = negativeWords.filter(word => lowerText.includes(word)).length;
-  
-  // If score is available, use it as primary indicator
-  if (score >= 4) return 'positive';
-  if (score <= 2) return 'negative';
-  
-  // Fallback to text analysis
-  if (positiveCount > negativeCount) return 'positive';
-  if (negativeCount > positiveCount) return 'negative';
-  return 'neutral';
-};
-
 export const useAnalyticsTableData = (organizationId: string) => {
   return useQuery({
     queryKey: ['analytics-table-data', organizationId],
@@ -166,7 +147,7 @@ export const useAnalyticsTableData = (organizationId: string) => {
           ? timedResponses.reduce((sum, r) => sum + (r.response_time_ms || 0), 0) / timedResponses.length 
           : 0;
 
-        // Process text responses for text input questions
+        // Process text responses for text input questions (without unreliable sentiment)
         const textResponses: TextResponse[] = [];
         if (question.question_type === 'text' || question.question_type === 'textarea') {
           const textResponsesData = questionResponses
@@ -175,8 +156,7 @@ export const useAnalyticsTableData = (organizationId: string) => {
               id: r.id,
               response_value: r.response_value as string,
               score: r.score || 0,
-              created_at: r.created_at,
-              sentiment: analyzeSentiment(r.response_value as string, r.score || 0)
+              created_at: r.created_at
             }))
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
           
@@ -192,10 +172,10 @@ export const useAnalyticsTableData = (organizationId: string) => {
           insights.push("Low completion - consider simplifying or repositioning");
         }
         if (avgScore > 4) {
-          insights.push("Positive sentiment - high satisfaction scores");
+          insights.push("High satisfaction scores");
         }
         if (avgScore < 2.5) {
-          insights.push("Negative sentiment - requires attention");
+          insights.push("Low satisfaction scores - requires attention");
         }
         if (avgResponseTime > 30000) {
           insights.push("Long response time - may indicate complexity");

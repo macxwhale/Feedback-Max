@@ -18,34 +18,25 @@ export const QuestionCommentsSection: React.FC<QuestionCommentsSectionProps> = (
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [visibleCount, setVisibleCount] = useState(5);
-  const [sentimentFilter, setSentimentFilter] = useState<'all' | 'positive' | 'negative' | 'neutral'>('all');
+  const [scoreFilter, setScoreFilter] = useState<'all' | 'high' | 'low'>('all');
 
   const filteredResponses = textResponses.filter(response => {
-    if (sentimentFilter === 'all') return true;
-    return response.sentiment === sentimentFilter;
+    if (scoreFilter === 'all') return true;
+    if (scoreFilter === 'high') return response.score >= 4;
+    if (scoreFilter === 'low') return response.score <= 2;
+    return true;
   });
 
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment) {
-      case 'positive': return 'bg-green-100 text-green-800';
-      case 'negative': return 'bg-red-100 text-red-800';
-      case 'neutral': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const getScoreColor = (score: number) => {
+    if (score >= 4) return 'bg-green-100 text-green-800';
+    if (score <= 2) return 'bg-red-100 text-red-800';
+    return 'bg-yellow-100 text-yellow-800';
   };
 
-  const getSentimentIcon = (sentiment: string) => {
-    switch (sentiment) {
-      case 'positive': return '😊';
-      case 'negative': return '😞';
-      case 'neutral': return '😐';
-      default: return '😐';
-    }
-  };
-
-  const truncateText = (text: string, maxLength: number = 200) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+  const getScoreLabel = (score: number) => {
+    if (score >= 4) return 'High Rated';
+    if (score <= 2) return 'Low Rated';
+    return 'Average';
   };
 
   const visibleResponses = filteredResponses.slice(0, visibleCount);
@@ -72,32 +63,25 @@ export const QuestionCommentsSection: React.FC<QuestionCommentsSectionProps> = (
         {isExpanded && (
           <div className="flex gap-2">
             <Button
-              variant={sentimentFilter === 'all' ? 'default' : 'outline'}
+              variant={scoreFilter === 'all' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setSentimentFilter('all')}
+              onClick={() => setScoreFilter('all')}
             >
               All
             </Button>
             <Button
-              variant={sentimentFilter === 'positive' ? 'default' : 'outline'}
+              variant={scoreFilter === 'high' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setSentimentFilter('positive')}
+              onClick={() => setScoreFilter('high')}
             >
-              Positive
+              High Rated (4-5★)
             </Button>
             <Button
-              variant={sentimentFilter === 'negative' ? 'default' : 'outline'}
+              variant={scoreFilter === 'low' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setSentimentFilter('negative')}
+              onClick={() => setScoreFilter('low')}
             >
-              Negative
-            </Button>
-            <Button
-              variant={sentimentFilter === 'neutral' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSentimentFilter('neutral')}
-            >
-              Neutral
+              Low Rated (1-2★)
             </Button>
           </div>
         )}
@@ -105,19 +89,26 @@ export const QuestionCommentsSection: React.FC<QuestionCommentsSectionProps> = (
 
       {isExpanded && (
         <div className="space-y-3">
-          {visibleResponses.map((response, index) => (
+          {visibleResponses.map((response) => (
             <Card key={response.id} className="p-4 bg-gray-50">
               <CardContent className="p-0">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Badge className={getSentimentColor(response.sentiment || 'neutral')}>
-                      {getSentimentIcon(response.sentiment || 'neutral')} {response.sentiment || 'neutral'}
-                    </Badge>
                     {response.score > 0 && (
-                      <div className="flex items-center gap-1 text-sm text-gray-600">
-                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                        {response.score}/5
-                      </div>
+                      <>
+                        <Badge className={getScoreColor(response.score)}>
+                          {getScoreLabel(response.score)}
+                        </Badge>
+                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                          {response.score}/5
+                        </div>
+                      </>
+                    )}
+                    {response.score === 0 && (
+                      <Badge className="bg-gray-100 text-gray-800">
+                        No Rating
+                      </Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-gray-500">

@@ -12,7 +12,6 @@ export interface TextResponse {
   response_value: string;
   score: number;
   created_at: string;
-  sentiment?: 'positive' | 'negative' | 'neutral';
 }
 
 export interface QuestionAnalytics {

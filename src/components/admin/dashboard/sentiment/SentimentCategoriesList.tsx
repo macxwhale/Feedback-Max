@@ -33,14 +33,14 @@ export const SentimentCategoriesList: React.FC<SentimentCategoriesListProps> = (
                     {category.sentiment}
                   </Badge>
                 </div>
-                <h4 className="font-medium">{category.category}</h4>
-                <p className="text-sm text-gray-600">
+                <h4 className="font-medium text-sm">{category.category}</h4>
+                <p className="text-xs text-gray-600">
                   {category.total_questions} questions • {category.total_responses} responses
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-xl font-bold">{category.total_responses}</div>
-                <div className="text-sm text-gray-500">responses</div>
+                <div className="text-lg font-bold">{category.total_questions}</div>
+                <div className="text-xs text-gray-500">Questions</div>
               </div>
             </div>
           ))}

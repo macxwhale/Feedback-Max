@@ -1,12 +1,31 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { AnalyticsTableData, QuestionAnalytics, CategoryAnalytics, TrendDataPoint } from '@/types/analytics';
+import { AnalyticsTableData, QuestionAnalytics, CategoryAnalytics, TrendDataPoint, TextResponse } from '@/types/analytics';
 import { 
   calculateSafePercentageChange, 
   calculateSafeGrowthRate, 
   normalizeScore, 
   validateSessionData 
 } from '@/utils/metricCalculations';
+
+// Simple sentiment analysis function
+const analyzeSentiment = (text: string, score: number): 'positive' | 'negative' | 'neutral' => {
+  const lowerText = text.toLowerCase();
+  const positiveWords = ['good', 'great', 'excellent', 'amazing', 'love', 'fantastic', 'perfect', 'wonderful'];
+  const negativeWords = ['bad', 'terrible', 'awful', 'hate', 'horrible', 'disappointing', 'poor', 'worst'];
+  
+  const positiveCount = positiveWords.filter(word => lowerText.includes(word)).length;
+  const negativeCount = negativeWords.filter(word => lowerText.includes(word)).length;
+  
+  // If score is available, use it as primary indicator
+  if (score >= 4) return 'positive';
+  if (score <= 2) return 'negative';
+  
+  // Fallback to text analysis
+  if (positiveCount > negativeCount) return 'positive';
+  if (negativeCount > positiveCount) return 'negative';
+  return 'neutral';
+};
 
 export const useAnalyticsTableData = (organizationId: string) => {
   return useQuery({
@@ -147,6 +166,23 @@ export const useAnalyticsTableData = (organizationId: string) => {
           ? timedResponses.reduce((sum, r) => sum + (r.response_time_ms || 0), 0) / timedResponses.length 
           : 0;
 
+        // Process text responses for text input questions
+        const textResponses: TextResponse[] = [];
+        if (question.question_type === 'text' || question.question_type === 'textarea') {
+          const textResponsesData = questionResponses
+            .filter(r => r.response_value && typeof r.response_value === 'string' && r.response_value.trim().length > 0)
+            .map(r => ({
+              id: r.id,
+              response_value: r.response_value as string,
+              score: r.score || 0,
+              created_at: r.created_at,
+              sentiment: analyzeSentiment(r.response_value as string, r.score || 0)
+            }))
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          
+          textResponses.push(...textResponsesData);
+        }
+
         // Generate insights based on performance
         const insights: string[] = [];
         if (questionCompletionRate > 90) {
@@ -176,7 +212,8 @@ export const useAnalyticsTableData = (organizationId: string) => {
           avg_response_time_ms: Math.round(avgResponseTime),
           response_distribution: {}, // Enhanced in separate processor
           insights,
-          trend: avgScore > 3.5 ? 'positive' : avgScore < 2.5 ? 'negative' : 'neutral' as 'positive' | 'negative' | 'neutral' | 'mixed'
+          trend: avgScore > 3.5 ? 'positive' : avgScore < 2.5 ? 'negative' : 'neutral' as 'positive' | 'negative' | 'neutral' | 'mixed',
+          text_responses: textResponses
         };
       });
 
@@ -267,7 +304,7 @@ export const useAnalyticsTableData = (organizationId: string) => {
         trendData
       };
 
-      console.log('Analytics result with safe calculations:', analyticsResult);
+      console.log('Analytics result with text responses:', analyticsResult);
       return analyticsResult;
     },
     enabled: !!organizationId,

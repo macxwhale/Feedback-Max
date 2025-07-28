@@ -10,12 +10,11 @@ interface SentimentIconProps {
 export const SentimentIcon: React.FC<SentimentIconProps> = ({ sentiment, className = "w-4 h-4" }) => {
   switch (sentiment) {
     case 'positive':
-      return <Smile className={`${className} text-green-600`} />;
+      return <Smile className={`text-green-600 ${className}`} />;
     case 'negative':
-      return <Frown className={`${className} text-red-600`} />;
+      return <Frown className={`text-red-600 ${className}`} />;
     case 'neutral':
-      return <Meh className={`${className} text-yellow-600`} />;
     default:
-      return <Meh className={`${className} text-gray-600`} />;
+      return <Meh className={`text-gray-600 ${className}`} />;
   }
 };

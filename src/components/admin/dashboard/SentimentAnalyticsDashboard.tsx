@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,8 +56,12 @@ export const SentimentAnalyticsDashboard: React.FC<SentimentAnalyticsDashboardPr
     const sentiment = question.trend === 'positive' ? 'positive' : 
                     question.trend === 'negative' ? 'negative' : 'neutral';
     return {
-      ...question,
+      question_text: question.question_text,
       sentiment,
+      total_responses: question.total_responses,
+      completion_rate: question.completion_rate,
+      question_type: question.question_type,
+      text_responses: question.text_responses || []
     };
   });
 
@@ -75,8 +80,10 @@ export const SentimentAnalyticsDashboard: React.FC<SentimentAnalyticsDashboardPr
                      positiveRate < 0.3 ? 'negative' : 'neutral';
     
     return {
-      ...category,
-      sentiment
+      category: category.category,
+      sentiment,
+      total_questions: category.total_questions,
+      total_responses: category.total_responses
     };
   });
 
@@ -104,21 +111,11 @@ export const SentimentAnalyticsDashboard: React.FC<SentimentAnalyticsDashboardPr
         </TabsList>
 
         <TabsContent value="questions" className="space-y-4">
-          <SentimentQuestionsList questionSentiments={questionSentiments.map(q => ({
-            question_text: q.question_text,
-            sentiment: q.sentiment,
-            total_responses: q.total_responses,
-            completion_rate: q.completion_rate
-          }))} />
+          <SentimentQuestionsList questionSentiments={questionSentiments} />
         </TabsContent>
 
         <TabsContent value="categories" className="space-y-4">
-          <SentimentCategoriesList categorySentiments={categorySentiments.map(c => ({
-            category: c.category,
-            sentiment: c.sentiment,
-            total_questions: c.total_questions,
-            total_responses: c.total_responses
-          }))} />
+          <SentimentCategoriesList categorySentiments={categorySentiments} />
         </TabsContent>
       </Tabs>
     </div>

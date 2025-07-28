@@ -7,6 +7,14 @@ export interface TrendDataPoint {
   avg_score: number;
 }
 
+export interface TextResponse {
+  id: string;
+  response_value: string;
+  score: number;
+  created_at: string;
+  sentiment?: 'positive' | 'negative' | 'neutral';
+}
+
 export interface QuestionAnalytics {
   id: string;
   question_text: string;
@@ -19,6 +27,7 @@ export interface QuestionAnalytics {
   response_distribution: Record<string, number>;
   insights: string[];
   trend: 'positive' | 'neutral' | 'negative' | 'mixed';
+  text_responses?: TextResponse[];
 }
 
 export interface CategoryAnalytics {

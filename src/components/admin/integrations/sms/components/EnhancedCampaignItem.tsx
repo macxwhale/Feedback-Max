@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,7 +91,7 @@ export const EnhancedCampaignItem: React.FC<EnhancedCampaignItemProps> = ({
   const canResume = campaign.status === 'paused';
   const canCancel = campaign.status === 'sending' || campaign.status === 'paused';
   const canEdit = campaign.status === 'draft' || campaign.status === 'failed';
-  const canDelete = campaign.status === 'draft' || campaign.status === 'cancelled' || campaign.status === 'failed';
+  const canDelete = true;
 
   return (
     <Card className="w-full hover:shadow-md transition-shadow">

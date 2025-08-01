@@ -33,7 +33,7 @@ export const CampaignDeleteModal: React.FC<CampaignDeleteModalProps> = ({
 
   if (!campaign) return null;
 
-  const canDelete = campaign.status === 'draft' || campaign.status === 'cancelled' || campaign.status === 'failed';
+  const isActiveCampaign = campaign.status === 'sending' || campaign.status === 'completed';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -50,11 +50,13 @@ export const CampaignDeleteModal: React.FC<CampaignDeleteModalProps> = ({
             Are you sure you want to delete the campaign "{campaign.name}"?
           </p>
           
-          {!canDelete && (
+          {isActiveCampaign && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-800">
-                This campaign cannot be deleted because it has been sent or is currently active. 
-                Only draft, cancelled, or failed campaigns can be deleted.
+              <p className="text-sm text-yellow-800 font-medium mb-1">
+                Warning: This campaign has been sent or is active
+              </p>
+              <p className="text-sm text-yellow-700">
+                Deleting this campaign will permanently remove all associated data including send records and statistics. This action cannot be undone.
               </p>
             </div>
           )}
@@ -66,7 +68,7 @@ export const CampaignDeleteModal: React.FC<CampaignDeleteModalProps> = ({
             <Button 
               variant="destructive" 
               onClick={handleDelete} 
-              disabled={isLoading || !canDelete}
+              disabled={isLoading}
             >
               {isLoading ? 'Deleting...' : 'Delete Campaign'}
             </Button>

@@ -129,21 +129,15 @@ serve(async (req) => {
 
     const recipients = phoneNumbers.map(p => p.phone_number)
 
-    // Enhanced message template with consent request
-    const consentMessage = `Hi! We'd love your feedback on our service. 
-
-Please reply with:
-1. Yes  
-2. No
-
-Your input helps us improve. 
-Thank you! – ${org.name}`
+    // Use the campaign's message template instead of hardcoded message
+    const messageToSend = campaign.message_template || `Hi! We'd love your feedback on our service. Please reply with your thoughts. Thank you! – ${org.name}`
+    console.log('Using message template from campaign:', { campaignId, messageLength: messageToSend.length });
 
     // Prepare Flask API request payload
     const requestData: FlaskSmsPayload = {
       org_id: org.id,
       recipients,
-      message: consentMessage, // Use consent message instead of campaign template
+      message: messageToSend, // Use campaign's message template
       sender: org.sms_sender_id || smsSettings.senderId || '41042',
       username: smsSettings.username,
       api_key: smsSettings.apiKey
@@ -206,14 +200,14 @@ Thank you! – ${org.name}`
           failedCount++
         }
 
-        // Record the send
+        // Record the send with the actual message that was sent
         await supabase
           .from('sms_sends')
           .insert({
             campaign_id: campaignId,
             organization_id: campaign.organization_id,
             phone_number: recipient.number,
-            message_content: consentMessage, // Store the actual sent message
+            message_content: messageToSend, // Store the actual sent message
             status,
             africastalking_message_id: recipient.messageId,
             sent_at: status === 'sent' ? new Date().toISOString() : null,
